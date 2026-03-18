@@ -50,3 +50,4 @@ coverage/
 *.bak
 test_body.json
 check_settings.js
+start_servers.bat
