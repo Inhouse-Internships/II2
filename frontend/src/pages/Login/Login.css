@@ -1,0 +1,297 @@
+/* Modern Light Theme for Login - Based on Provided Image */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+.auth-page-wrapper {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  position: relative;
+  overflow: hidden;
+  z-index: 0;
+}
+
+/* THE LOGO BACKGROUND - Single, Large, and Clear */
+.auth-page-wrapper::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: url('/au-logo.jpg');
+  /* 'cover' makes it fill the screen, '120vw' ensures it's massive. Let's use 120vw */
+  /* Immersive background size */
+  background-size: 140vh;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  z-index: -2;
+  pointer-events: none;
+  /* Longer duration to allow for the very slow secondary drift */
+  animation: bgLogoEntrance 15s ease-out forwards;
+}
+
+@keyframes bgLogoEntrance {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+
+  5% {
+    /* Fast burst: In 0.75 seconds, it hits its core visibility and size */
+    opacity: 0.12;
+    transform: scale(1.15);
+  }
+
+  100% {
+    /* Slow drift: Over the next 14.25 seconds, it barely moves for a high-end feel */
+    opacity: 0.12;
+    transform: scale(1.3);
+  }
+}
+
+/* Soft central glow to highlight the glass box */
+.auth-page-wrapper::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.4) 0%, transparent 80%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Back to Home Button Inside Card */
+.back-to-home-btn {
+  color: #475569 !important;
+  z-index: 10;
+  padding: 8px !important;
+}
+
+.auth-card-modern {
+  width: 100%;
+  max-width: 440px;
+  padding: 48px 40px;
+  /* Crystal Clear Frosted Glass - Very transparent */
+  background: rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(12px);
+  /* Lower blur for a sharper look */
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(59, 130, 246, 0.4);
+  border-radius: 28px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+  /* Softer, cleaner shadow */
+  z-index: 10;
+  text-align: center;
+  position: relative;
+}
+
+/* Essential for absolute child */
+
+
+.auth-header-new {
+  margin-bottom: 40px;
+}
+
+.auth-header-new img {
+  border-radius: 50%;
+}
+
+.logo-container {
+  width: 56px;
+  height: 56px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24px;
+  padding: 4px;
+}
+
+.university-logo-small {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+.welcome-text {
+  font-size: 2rem !important;
+  font-weight: 800 !important;
+  color: #0f172a !important;
+  margin-bottom: 8px !important;
+}
+
+.subtitle-text {
+  color: #64748b !important;
+  font-weight: 500 !important;
+}
+
+.auth-alert {
+  margin-bottom: 24px !important;
+  border-radius: 16px !important;
+  background-color: rgba(254, 242, 242, 0.6) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(239, 68, 68, 0.2) !important;
+}
+
+.auth-form-v2 {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Styled Inputs with Light Grey Background */
+.modern-input .MuiFilledInput-root {
+  background-color: rgba(241, 245, 249, 0.4) !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  height: 56px;
+  transition: all 0.2s ease;
+}
+
+.modern-input .MuiFilledInput-root:hover {
+  background-color: rgba(226, 232, 240, 0.5) !important;
+}
+
+.modern-input .MuiFilledInput-root.Mui-focused {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.modern-input .MuiInputLabel-root {
+  color: #475569 !important;
+  font-weight: 600;
+  padding-left: 4px;
+}
+
+.modern-input .MuiInputLabel-root.Mui-focused {
+  color: #3b82f6 !important;
+}
+
+.forgot-password-link {
+  text-align: right;
+  margin: 4px 0 24px;
+}
+
+.forgot-password-link a {
+  color: #3b82f6;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.forgot-password-link a:hover {
+  text-decoration: underline;
+}
+
+.signin-btn-v2 {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  color: #ffffff !important;
+  height: 56px !important;
+  border-radius: 16px !important;
+  text-transform: none !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  box-shadow: 0 10px 20px rgba(59, 130, 246, 0.15) !important;
+  transition: all 0.2s ease !important;
+}
+
+.signin-btn-v2:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 25px rgba(59, 130, 246, 0.25) !important;
+}
+
+.auth-footer-v2 {
+  margin-top: 32px !important;
+  color: #64748b !important;
+  font-size: 0.95rem !important;
+  font-weight: 500 !important;
+}
+
+.register-link {
+  color: #3b82f6 !important;
+  text-decoration: none !important;
+  font-weight: 700 !important;
+}
+
+.register-link:hover {
+  text-decoration: underline !important;
+}
+
+/* Glassmorphism for MuiAlert and custom notes */
+.MuiAlert-root {
+  background-color: rgba(255, 255, 255, 0.4) !important;
+  backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Animations */
+.auth-card-modern {
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.stagger-item {
+  opacity: 0;
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.stagger-item:nth-child(1) {
+  animation-delay: 0.05s;
+}
+
+.stagger-item:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.stagger-item:nth-child(3) {
+  animation-delay: 0.15s;
+}
+
+.stagger-item:nth-child(4) {
+  animation-delay: 0.2s;
+}
+
+.stagger-item:nth-child(5) {
+  animation-delay: 0.25s;
+}
+
+.stagger-item:nth-child(6) {
+  animation-delay: 0.3s;
+}
+
+@media (max-width: 600px) {
+  .auth-card-modern {
+    padding: 32px 20px;
+    border-radius: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.7) !important;
+    backdrop-filter: blur(15px);
+  }
+
+  .auth-page-wrapper {
+    background: #f1f5f9;
+  }
+}

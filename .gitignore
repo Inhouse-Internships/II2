@@ -1,0 +1,52 @@
+# ============================================================
+# Inhouse Internships 2.0 — .gitignore
+# ============================================================
+
+# ── Dependencies ─────────────────────────────────────────────
+node_modules/
+**/node_modules/
+
+# ── Environment files (NEVER commit — contain secrets) ───────
+.env
+**/.env
+backend/.env
+frontend/.env
+# Allow .env.example files (no real secrets, documentation only)
+!.env.example
+!**/.env.example
+
+# ── Logs (may contain user data / PII) ───────────────────────
+*.log
+backend/logs/
+backend/login_audit.log
+frontend/vite_startup.log
+frontend/build_output.log
+
+# ── Build outputs ─────────────────────────────────────────────
+dist/
+**/dist/
+build/
+**/build/
+
+# ── Vite / dev caches ────────────────────────────────────────
+.vite/
+**/.vite/
+
+# ── OS / Editor artifacts ─────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp
+*.swo
+*.orig
+
+# ── Test artifacts ────────────────────────────────────────────
+coverage/
+**/coverage/
+.nyc_output/
+
+# ── Temporary files ───────────────────────────────────────────
+*.tmp
+*.bak
+test_body.json
+check_settings.js
