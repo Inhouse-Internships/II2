@@ -52,11 +52,13 @@ function normalizeError(error) {
 }
 
 function errorHandler(err, req, res, next) {
-  console.error(`ERROR [${req.method} ${req.url}]:`, err.message);
-  if (!err.statusCode || err.statusCode === 500) {
+  const normalized = normalizeError(err);
+
+  // Only log server-side errors (5xx) in detail
+  if (normalized.statusCode >= 500) {
+    console.error(`ERROR [${req.method} ${req.url}]:`, err.message);
     console.error(err.stack);
   }
-  const normalized = normalizeError(err);
   const debugError = env.IS_PRODUCTION ? {} : { stack: err.stack };
 
   return errorResponse(

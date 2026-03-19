@@ -144,12 +144,6 @@ const register = asyncHandler(async (req, res) => {
     }
   }
 
-  if (env.REQUIRE_REGISTRATION_OTP) {
-    if (!otp) throw new AppError(400, 'OTP is required for registration');
-    const otpValidation = consumeOtp({ email, otp, purpose: OTP_PURPOSE.REGISTRATION, requireVerified: true });
-    if (!otpValidation.valid) throw new AppError(400, otpValidation.reason);
-  }
-
   // FIX S-8: Direct indexed equality lookup (email stored lowercase via pre-save hook)
   const existingUser = await User.findOne({ email }).lean();
   if (existingUser) throw new AppError(409, 'User already exists with this email');
@@ -163,6 +157,12 @@ const register = asyncHandler(async (req, res) => {
   if (normalizedEmployeeId) {
     const existingEmployeeId = await User.findOne({ employeeId: normalizedEmployeeId }).lean();
     if (existingEmployeeId) throw new AppError(409, 'Employee ID already exists');
+  }
+
+  if (env.REQUIRE_REGISTRATION_OTP) {
+    if (!otp) throw new AppError(400, 'OTP is required for registration');
+    const otpValidation = consumeOtp({ email, otp, purpose: OTP_PURPOSE.REGISTRATION, requireVerified: true });
+    if (!otpValidation.valid) throw new AppError(400, otpValidation.reason);
   }
 
   const hashedPassword = await hashPassword(password);

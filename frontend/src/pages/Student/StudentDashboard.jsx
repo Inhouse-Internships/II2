@@ -78,7 +78,7 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [showEligibleOnly, setShowEligibleOnly] = useState(false);
+  const [showAllProjects, setShowAllProjects] = useState(false);
   const [upcomingReviews, setUpcomingReviews] = useState([]);
   const [todayAttendance, setTodayAttendance] = useState(null);
   const [section, setSection] = useState(() => {
@@ -248,7 +248,9 @@ export default function StudentDashboard() {
     }
   };
 
+  const [reordering, setReordering] = useState(false);
   const handleReorder = async (currentIndex, direction) => {
+    if (reordering) return;
     const list = [student.appliedProject, ...(student.projectApplications || [])].filter(Boolean);
     if (direction === 'up' && currentIndex > 0) {
       const temp = list[currentIndex];
@@ -262,6 +264,7 @@ export default function StudentDashboard() {
       return;
     }
 
+    setReordering(true);
     try {
       const res = await apiFetch("/api/student/reorder-applications", {
         method: "POST",
@@ -269,10 +272,12 @@ export default function StudentDashboard() {
         body: JSON.stringify({ applications: list.map(p => typeof p === 'object' ? p._id : p) })
       });
       if (res.ok) {
-        fetchDashboard();
+        await fetchDashboard();
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      setReordering(false);
     }
   };
 
@@ -671,7 +676,7 @@ export default function StudentDashboard() {
                                         <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                                           <IconButton
                                             size="small"
-                                            disabled={idx === 0}
+                                            disabled={idx === 0 || reordering}
                                             onClick={() => handleReorder(idx, 'up')}
                                             title="Move Up"
                                           >
@@ -679,7 +684,7 @@ export default function StudentDashboard() {
                                           </IconButton>
                                           <IconButton
                                             size="small"
-                                            disabled={idx === arr.length - 1}
+                                            disabled={idx === arr.length - 1 || reordering}
                                             onClick={() => handleReorder(idx, 'down')}
                                             title="Move Down"
                                           >
@@ -943,11 +948,11 @@ export default function StudentDashboard() {
                       <FormControlLabel
                         control={
                           <Switch
-                            checked={showEligibleOnly}
-                            onChange={e => setShowEligibleOnly(e.target.checked)}
+                            checked={showAllProjects}
+                            onChange={e => setShowAllProjects(e.target.checked)}
                           />
                         }
-                        label="Eligible Only"
+                        label="Show All Projects"
                         sx={{ ml: 0, whiteSpace: 'nowrap' }}
                       />
                     </Stack>
@@ -957,7 +962,7 @@ export default function StudentDashboard() {
                     {projects.filter(p => {
                       const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                         (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()));
-                      return matchesSearch && (!showEligibleOnly || p.isEligible);
+                      return matchesSearch && (showAllProjects || p.isEligible);
                     }).map((project) => (
                       <Box key={project._id} sx={{ height: '100%' }}>
                         <Card
@@ -1004,7 +1009,7 @@ export default function StudentDashboard() {
 
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                               <Typography variant="caption" color="text.secondary" fontWeight="bold">
-                                Available Seats by Department:
+                                Registration Status by Department:
                               </Typography>
                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                 {project.departments && project.departments.length > 0 ? (

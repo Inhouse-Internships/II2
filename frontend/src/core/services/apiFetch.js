@@ -134,6 +134,19 @@ export async function apiFetch(url, options = {}) {
 
   const normalized = normalizeApiEnvelope(parsedPayload) ?? {};
 
+  // ── Global Error Handling (401 Unauthorized) ────────────────────────────────
+  if (response.status === 401) {
+    import('../utils/auth').then(({ clearAuthSession }) => {
+      clearAuthSession();
+      // Only redirect if not already on login/register to avoid loops
+      const publicPaths = ['/login', '/register', '/forgot-password', '/health'];
+      const currentPath = window.location.pathname;
+      if (!publicPaths.some(path => currentPath.startsWith(path)) && currentPath !== '/') {
+        window.location.href = '/login?expired=true';
+      }
+    });
+  }
+
   // ── Cache write ─────────────────────────────────────────────────────────────
   if (useCache && response.ok) {
     cacheSet(targetUrl, normalized, Date.now());

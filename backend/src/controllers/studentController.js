@@ -30,7 +30,7 @@ async function getProjectEnrollmentStats(projectIds) {
       status: USER_STATUS.APPROVED,
       appliedProject: { $in: projectIds }
     })
-      .select('name appliedProject')
+      .select('name employeeId department appliedProject')
       .lean(),
 
     User.find({
@@ -38,7 +38,7 @@ async function getProjectEnrollmentStats(projectIds) {
       coGuideStatus: USER_STATUS.APPROVED,
       coGuidedProject: { $in: projectIds }
     })
-      .select('name coGuidedProject')
+      .select('name employeeId department coGuidedProject')
       .lean(),
 
     User.aggregate([
@@ -85,14 +85,22 @@ async function getProjectEnrollmentStats(projectIds) {
   const guideMap = new Map();
   guides.forEach((faculty) => {
     if (faculty.appliedProject) {
-      guideMap.set(String(faculty.appliedProject), faculty.name);
+      guideMap.set(String(faculty.appliedProject), {
+        name: faculty.name,
+        employeeId: faculty.employeeId,
+        department: faculty.department
+      });
     }
   });
 
   const coGuideMap = new Map();
   coGuides.forEach((faculty) => {
     if (faculty.coGuidedProject) {
-      coGuideMap.set(String(faculty.coGuidedProject), faculty.name);
+      coGuideMap.set(String(faculty.coGuidedProject), {
+        name: faculty.name,
+        employeeId: faculty.employeeId,
+        department: faculty.department
+      });
     }
   });
 
@@ -164,8 +172,17 @@ const getDashboard = asyncHandler(async (req, res) => {
       if (typeof proj !== 'object' || !proj._id) return proj;
 
       const pid = String(proj._id);
-      proj.guide = guideMap.get(pid) || proj.guide || '';
-      proj.coGuide = coGuideMap.get(pid) || proj.coGuide || '';
+      const guide = guideMap.get(pid);
+      const coGuide = coGuideMap.get(pid);
+
+      proj.guide = guide ? guide.name : (proj.guide || '');
+      proj.guideEmpId = guide ? guide.employeeId : (proj.guideEmpId || '');
+      proj.guideDept = guide ? guide.department : (proj.guideDept || '');
+
+      proj.coGuide = coGuide ? coGuide.name : (proj.coGuide || '');
+      proj.coGuideEmpId = coGuide ? coGuide.employeeId : (proj.coGuideEmpId || '');
+      proj.coGuideDept = coGuide ? coGuide.department : (proj.coGuideDept || '');
+
       proj.registeredCount = studentCountMap.get(pid) || 0;
 
       const projectDepartments = proj.departments || [];
@@ -222,12 +239,21 @@ const getDashboard = asyncHandler(async (req, res) => {
 
     const studentDepartmentEntry = departments.find((entry) => entry.name === student.department);
 
+    const guide = guideMap.get(String(project._id));
+    const coGuide = coGuideMap.get(String(project._id));
+
     return {
       _id: project._id,
       title: project.title,
       description: project.description,
-      guide: guideMap.get(String(project._id)) || project.guide || '',
-      coGuide: coGuideMap.get(String(project._id)) || project.coGuide || '',
+      skillsRequired: project.skillsRequired || '',
+      projectOutcome: project.projectOutcome || '',
+      guide: guide ? guide.name : (project.guide || ''),
+      guideEmpId: guide ? guide.employeeId : (project.guideEmpId || ''),
+      guideDept: guide ? guide.department : (project.guideDept || ''),
+      coGuide: coGuide ? coGuide.name : (project.coGuide || ''),
+      coGuideEmpId: coGuide ? coGuide.employeeId : (project.coGuideEmpId || ''),
+      coGuideDept: coGuide ? coGuide.department : (project.coGuideDept || ''),
       seatsAvailable: studentDepartmentEntry ? studentDepartmentEntry.seats : 0,
       isEligible: Boolean(studentDepartmentEntry),
       departments,
@@ -517,15 +543,15 @@ const reorderApplications = asyncHandler(async (req, res) => {
     throw new AppError(400, 'Invalid applications list provided for reordering');
   }
 
-  if (newList.length > 0) {
-    student.appliedProject = newList[0];
-    student.projectApplications = newList.slice(1);
-  } else {
-    student.appliedProject = null;
-    student.projectApplications = [];
-  }
+  const updateData = newList.length > 0 ? {
+    appliedProject: newList[0],
+    projectApplications: newList.slice(1)
+  } : {
+    appliedProject: null,
+    projectApplications: []
+  };
 
-  await student.save();
+  await User.findByIdAndUpdate(studentId, { $set: updateData });
   return successResponse(res, {}, 'Applications reordered successfully');
 });
 

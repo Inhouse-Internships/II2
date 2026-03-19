@@ -4,6 +4,7 @@ const TaskSubmission = require('../models/TaskSubmission');
 const Department = require('../models/Department');
 const asyncHandler = require('../utils/asyncHandler');
 const { successResponse } = require('../utils/response');
+const { ROLES } = require('../utils/constants');
 
 const executeBatch = asyncHandler(async (req, res) => {
     const { requests = [] } = req.body;
@@ -39,21 +40,38 @@ const executeBatch = asyncHandler(async (req, res) => {
             };
 
             // Internal router
+
             if (url === '/api/analytics/university' && method === 'GET') {
+                if (req.user.role !== ROLES.ADMIN) {
+                    results[id] = { status: 403, error: 'Forbidden: insufficient role' };
+                    return;
+                }
                 const { getUniversityAnalytics } = require('./analyticsController');
                 await getUniversityAnalytics({ user: req.user }, mockRes, mockNext);
             }
             else if (url.startsWith('/api/analytics/department/') && method === 'GET') {
+                if (req.user.role !== ROLES.ADMIN && req.user.role !== ROLES.HOD) {
+                    results[id] = { status: 403, error: 'Forbidden: insufficient role' };
+                    return;
+                }
                 const deptName = url.split('/').pop().split('?')[0]; // strip query if present
                 const { getDepartmentAnalytics } = require('./analyticsController');
                 const mockReq = { user: req.user, params: { departmentId: deptName } };
                 await getDepartmentAnalytics(mockReq, mockRes, mockNext);
             }
             else if (url === '/api/analytics/guide' && method === 'GET') {
+                if (req.user.role !== ROLES.FACULTY) {
+                    results[id] = { status: 403, error: 'Forbidden: insufficient role' };
+                    return;
+                }
                 const { getGuideAnalytics } = require('./analyticsController');
                 await getGuideAnalytics({ user: req.user }, mockRes, mockNext);
             }
             else if (url.startsWith('/api/admin/students') && method === 'GET') {
+                if (req.user.role !== ROLES.ADMIN) {
+                    results[id] = { status: 403, error: 'Forbidden: insufficient role' };
+                    return;
+                }
                 const { getStudents } = require('./adminController');
                 const query = {};
                 const urlObj = new URL(url, 'http://localhost');
