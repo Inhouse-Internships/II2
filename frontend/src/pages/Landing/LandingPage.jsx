@@ -447,8 +447,11 @@ export default function LandingPage() {
                                 fontSize: { xs: '3.5rem', sm: '4.5rem', md: '6rem' },
                                 lineHeight: 1.05,
                                 mb: 4,
-                                color: '#0f172a',
+                                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.info.dark} 100%)`,
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
                                 letterSpacing: '-0.03em',
+                                pb: '10px',
                                 animation: activeSection === 'hero' ? 'zoomInMain 1s ease-out forwards' : 'none',
                                 '@keyframes zoomInMain': {
                                     '0%': { opacity: 0, transform: 'scale(0.995) translateY(15px)' },
@@ -457,15 +460,7 @@ export default function LandingPage() {
                             }}
                         >
                             In-House<br />
-                            <span style={{
-                                background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.info.dark} 100%)`,
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                display: 'inline-block',
-                                paddingBottom: '10px'
-                            }}>
-                                Internships 2.0
-                            </span>
+                            Internships 2.0
                         </Typography>
                         <Typography
                             variant="h5"
@@ -640,7 +635,7 @@ export default function LandingPage() {
                                 variant="h3"
                                 fontWeight={900}
                                 sx={{
-                                    background: 'linear-gradient(135deg, #0f172a 0%, #334155 100%)',
+                                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.info.dark} 100%)`,
                                     WebkitBackgroundClip: 'text',
                                     WebkitTextFillColor: 'transparent',
                                     mb: 4,
@@ -700,7 +695,7 @@ export default function LandingPage() {
                                 variant="h3"
                                 fontWeight={900}
                                 sx={{
-                                    background: 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
+                                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.info.dark} 100%)`,
                                     WebkitBackgroundClip: 'text',
                                     WebkitTextFillColor: 'transparent',
                                     mb: 4,
