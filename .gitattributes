@@ -1,0 +1,10 @@
+# Force all text files to have LF (Linux-style) line endings in the repository
+* text=auto eol=lf
+
+# Explicitly set common file types
+*.js text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+*.bat text eol=crlf

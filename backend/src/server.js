@@ -19,6 +19,10 @@ async function startServer() {
   // 1. Connect to database first
   await connectDB();
 
+  // 1b. Seed default admin if none exists
+  const seedAdmin = require('./config/seed');
+  await seedAdmin();
+
   // 2. (Optional) Verify SMTP at startup to catch misconfiguration early
   const { verifyTransporter } = require('./mailer');
   const smtpOk = await verifyTransporter();
