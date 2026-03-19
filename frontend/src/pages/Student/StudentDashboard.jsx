@@ -721,16 +721,8 @@ export default function StudentDashboard() {
                                         </Button>
                                       )}
 
-                                      {student.level < 2 && (
-                                        <IconButton
-                                          size="small"
-                                          color="error"
-                                          onClick={() => handleWithdraw(p._id)}
-                                          title="Withdraw this application"
-                                        >
-                                          <CloseIcon sx={{ fontSize: '1rem' }} />
-                                        </IconButton>
-                                      )}
+                                      {/* Removed CloseIcon withdrawal button as requested */}
+
                                     </Box>
                                   </Box>
                                 );
@@ -878,9 +870,8 @@ export default function StudentDashboard() {
                   )}
 
                   <InfoNote notes={[
-                    "Students can apply for maximum 5 projects. You can track your applications on the Dashboard.",
-                    "Project approval for a student at Level 1 is on a First-Come, First-Served (FCFS) basis.",
-                    "To be selected for Level 2, a student has to appear for an interview."
+                    "Students can apply for a maximum of 5 projects and track their application status on the Dashboard.",
+                    "To be promoted to Level 2, a student must appear for the project selection interview."
                   ]} />
 
                   {/* UPCOMING REVIEWS WIDGET */}
@@ -1149,7 +1140,31 @@ export default function StudentDashboard() {
           onClose={() => setViewOpen(false)}
           project={viewProject}
           customActions={
-            <Button onClick={() => setViewOpen(false)} ref={viewProjectCloseButtonRef}>Close</Button>
+            <Box sx={{ display: 'flex', gap: 1, width: '100%', justifyContent: 'flex-end' }}>
+              {viewProject && student.level < 2 && (
+                ((String(student.appliedProject?._id || student.appliedProject) === String(viewProject._id)) ||
+                  (student.projectApplications || []).some(ap => String(ap._id || ap) === String(viewProject._id)))
+              ) && (
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={() => {
+                      handleWithdraw(viewProject._id);
+                      setViewOpen(false);
+                    }}
+                    sx={{ borderRadius: 2, fontWeight: 700, textTransform: 'none' }}
+                  >
+                    Withdraw
+                  </Button>
+                )}
+              <Button
+                onClick={() => setViewOpen(false)}
+                ref={viewProjectCloseButtonRef}
+                sx={{ borderRadius: 2, fontWeight: 700, textTransform: 'none' }}
+              >
+                Close
+              </Button>
+            </Box>
           }
         />
 

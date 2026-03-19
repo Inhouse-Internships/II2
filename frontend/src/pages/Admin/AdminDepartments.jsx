@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
     Box,
     Typography,
@@ -10,26 +10,19 @@ import {
     Stack,
     Chip,
     Paper,
-    Table,
-    TableHead,
-    TableRow,
-    TableCell,
     CircularProgress,
     Tooltip,
     alpha,
     useTheme,
-    InputBase,
-    Container
+    Button,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem
 } from "@mui/material";
 import {
     Apartment as ApartmentIcon,
-    ArrowBack as ArrowBackIcon,
-    Folder as FolderIcon,
-    Group as GroupIcon,
-    Search as SearchIcon,
-    Launch as LaunchIcon,
-    Visibility as VisibilityIcon,
-    BarChart as BarChartIcon
+    ArrowBack as ArrowBackIcon
 } from "@mui/icons-material";
 import { apiFetch } from "../../core/services/apiFetch";
 import PageHeader from "../../components/common/PageHeader";
@@ -40,8 +33,13 @@ import FacultyDetailsDialog from "../../components/common/FacultyDetailsDialog";
 import {
     Assignment as AssignmentIcon,
     CheckCircle as CheckCircleIcon,
-    RateReview as RateReviewIcon
+    RateReview as RateReviewIcon,
+    CheckBox as CheckBoxIcon,
+    Close as CloseIcon
 } from "@mui/icons-material";
+import SearchBar from "../../components/common/SearchBar";
+import ConfirmDialog from "../../components/common/ConfirmDialog";
+
 
 export default function AdminDepartments(props) {
     const theme = useTheme();
@@ -56,13 +54,69 @@ export default function AdminDepartments(props) {
     const [localAvailableDepts, setLocalAvailableDepts] = useState([]);
     const [facultyDetailsOpen, setFacultyDetailsOpen] = useState(false);
     const [selectedFacultyName, setSelectedFacultyName] = useState("");
+    const [viewMode, setViewMode] = useState("baseDept");
 
+    // Local states for department-specific project view
+    const [localSearchQuery, setLocalSearchQuery] = useState("");
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState([]);
+    const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+    // Reset local states when changing departments
     useEffect(() => {
-        fetchMatrix();
-        fetchDepartments();
-    }, []);
+        setLocalSearchQuery("");
+        setSelectionMode(false);
+        setSelectedIds([]);
+    }, [selectedDept?.name]);
 
-    const fetchDepartments = async () => {
+    const filteredDeptProjects = useMemo(() => {
+        if (!selectedDept || !selectedDept.projects) return [];
+        let list = selectedDept.projects;
+        if (localSearchQuery) {
+            const q = localSearchQuery.toLowerCase();
+            list = list.filter(p =>
+                (p.title || "").toLowerCase().includes(q) ||
+                (p.projectId || "").toLowerCase().includes(q) ||
+                (p.guide || "").toLowerCase().includes(q)
+            );
+        }
+        return list;
+    }, [selectedDept, localSearchQuery]);
+
+    const handleSelectOne = (id) => {
+        setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    };
+
+    const handleSelectAll = (event) => {
+        if (event.target.checked) {
+            setSelectedIds(filteredDeptProjects.map(p => p._id));
+        } else {
+            setSelectedIds([]);
+        }
+    };
+
+    const handleExportSelected = () => {
+        const selectedProjects = selectedDept.projects.filter(p => selectedIds.includes(p._id));
+        if (context.setSection) {
+            context.setSection("import-export", { exportData: selectedProjects, type: "projects" });
+        }
+    };
+
+    const handleBulkDelete = () => setBulkDeleteOpen(true);
+
+    const confirmBulkDelete = async () => {
+        try {
+            await Promise.all(selectedIds.map(id => apiFetch(`/api/projects/${id}`, { method: 'DELETE' })));
+            fetchMatrix();
+            setSelectedIds([]);
+            setSelectionMode(false);
+            setBulkDeleteOpen(false);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const fetchDepartments = useCallback(async () => {
         if (context.allDepartmentsData?.length > 0) return;
         try {
             const res = await apiFetch("/api/admin/all-db-departments");
@@ -73,9 +127,9 @@ export default function AdminDepartments(props) {
         } catch (err) {
             console.error("Failed to fetch departments from settings", err);
         }
-    };
+    }, [context.allDepartmentsData]);
 
-    const fetchMatrix = async () => {
+    const fetchMatrix = useCallback(async () => {
         try {
             setLoading(true);
             const res = await apiFetch("/api/admin/departments");
@@ -88,9 +142,9 @@ export default function AdminDepartments(props) {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
-    const fetchProjectDetails = async (projectId) => {
+    const fetchProjectDetails = useCallback(async (projectId) => {
         try {
             const res = await apiFetch(`/api/projects/${projectId}`);
             if (res.ok) {
@@ -100,7 +154,12 @@ export default function AdminDepartments(props) {
             console.error("Failed to fetch project details", err);
         }
         return null;
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchMatrix();
+        fetchDepartments();
+    }, [fetchMatrix, fetchDepartments]);
 
     const { allDepartmentsData: contextDepts = [] } = context;
     const availableDepts = contextDepts.length > 0 ? contextDepts : localAvailableDepts;
@@ -123,40 +182,67 @@ export default function AdminDepartments(props) {
         });
 
         matrixData.forEach(project => {
-            // Priority: baseDept > first allocated department > General
-            let bDept = project.baseDept;
-            if (!bDept && project.departments && project.departments.length > 0) {
-                bDept = project.departments[0].name;
+            // Determine which departments this project belongs to based on viewMode
+            const deptsToAssign = new Set();
+
+            if (viewMode === "baseDept") {
+                let bDept = project.baseDept;
+                if (!bDept && project.departments && project.departments.length > 0) {
+                    bDept = project.departments[0].name || project.departments[0].department?.name;
+                }
+                if (!bDept) bDept = 'General';
+                deptsToAssign.add(bDept);
+            } else if (viewMode === "studentsView") {
+                (project.departments || []).forEach(d => {
+                    const dName = d.name || d.department?.name;
+                    if (dName) deptsToAssign.add(dName);
+                });
+            } else if (viewMode === "guideView") {
+                if (project.guideDept) deptsToAssign.add(project.guideDept);
+            } else if (viewMode === "coGuideView") {
+                if (project.coGuideDept) deptsToAssign.add(project.coGuideDept);
+            } else if (viewMode === "hodView") {
+                if (project.baseDept) deptsToAssign.add(project.baseDept);
+                if (project.guideDept) deptsToAssign.add(project.guideDept);
+                if (project.coGuideDept) deptsToAssign.add(project.coGuideDept);
             }
-            if (!bDept) bDept = 'General';
 
-            if (!stats[bDept]) {
-                stats[bDept] = {
-                    name: bDept,
-                    projectCount: 0,
-                    totalSeats: 0,
-                    registeredCount: 0,
-                    projects: []
-                };
-            }
+            deptsToAssign.forEach(deptName => {
+                if (!stats[deptName]) {
+                    stats[deptName] = {
+                        name: deptName,
+                        projectCount: 0,
+                        totalSeats: 0,
+                        registeredCount: 0,
+                        projects: []
+                    };
+                }
 
-            const totalProjectSeats = project.projectTotalSeats || 0;
-            const totalProjectReg = project.projectTotalRegistered || 0;
+                let seats = project.projectTotalSeats || 0;
+                let registered = project.projectTotalRegistered || 0;
 
-            stats[bDept].projectCount += 1;
-            stats[bDept].totalSeats += totalProjectSeats;
-            stats[bDept].registeredCount += totalProjectReg;
-            stats[bDept].projects.push({
-                ...project,
-                deptSeats: totalProjectSeats,
-                deptRegistered: totalProjectReg
+                // For studentsView, we use the specific department's capacity
+                if (viewMode === "studentsView") {
+                    const deptEntry = project.departments?.find(d => (d.name || d.department?.name) === deptName);
+                    if (deptEntry) {
+                        seats = deptEntry.seats || 0;
+                        registered = deptEntry.registered || 0;
+                    }
+                }
+
+                stats[deptName].projectCount += 1;
+                stats[deptName].totalSeats += seats;
+                stats[deptName].registeredCount += registered;
+                stats[deptName].projects.push({
+                    ...project,
+                    deptSeats: seats,
+                    deptRegistered: registered
+                });
             });
         });
 
-        // Filter out departments with 0 projects only if they were added via 'General' fallback
-        // but the user wants the dept grid to show properly, so keep all system depts.
         return Object.values(stats).sort((a, b) => a.name.localeCompare(b.name));
-    }, [matrixData, availableDepts]);
+    }, [matrixData, availableDepts, viewMode]);
 
 
     const handleOpenProject = async (projectSummary) => {
@@ -274,9 +360,8 @@ export default function AdminDepartments(props) {
         },
         {
             id: "seats", label: "Registered / Seats", minWidth: 150, render: (p) => {
-                const d = p.departments?.find(it => it.name === selectedDept.name);
-                const reg = d ? d.registered : (p.deptRegistered || 0);
-                const total = d ? d.total : (p.deptSeats || 0);
+                const reg = p.deptRegistered || 0;
+                const total = p.deptSeats || 0;
                 return (
                     <Typography
                         onDoubleClick={() => {
@@ -355,6 +440,30 @@ export default function AdminDepartments(props) {
                     <PageHeader
                         title="Departments"
                         subtitle="Detailed overview of project distribution and student registrations across departments."
+                        action={
+                            <FormControl variant="outlined" size="small" sx={{ minWidth: 180 }}>
+                                <InputLabel id="view-mode-label">Select View</InputLabel>
+                                <Select
+                                    labelId="view-mode-label"
+                                    value={viewMode}
+                                    onChange={(e) => setViewMode(e.target.value)}
+                                    label="Select View"
+                                    sx={{
+                                        borderRadius: '12px',
+                                        bgcolor: '#fff',
+                                        '& .MuiOutlinedInput-notchedOutline': {
+                                            borderColor: '#e2e8f0'
+                                        }
+                                    }}
+                                >
+                                    <MenuItem value="baseDept">Base Dept</MenuItem>
+                                    <MenuItem value="studentsView">Students View</MenuItem>
+                                    <MenuItem value="guideView">Guide View</MenuItem>
+                                    <MenuItem value="coGuideView">Co-Guide View</MenuItem>
+                                    <MenuItem value="hodView">HOD View</MenuItem>
+                                </Select>
+                            </FormControl>
+                        }
                     />
 
                     <Grid container spacing={{ xs: 2, md: 3 }}>
@@ -429,33 +538,145 @@ export default function AdminDepartments(props) {
                 </>
             ) : (
                 <>
-                    <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 4 }}>
-                        <IconButton
-                            onClick={() => setSelectedDept(null)}
+                    <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        justifyContent="space-between"
+                        alignItems={{ xs: "flex-start", sm: "center" }}
+                        spacing={2}
+                        sx={{ mb: 4 }}
+                    >
+                        <Stack direction="row" alignItems="center" spacing={1.5}>
+                            <IconButton
+                                onClick={() => setSelectedDept(null)}
+                                sx={{
+                                    bgcolor: '#fff',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                    '&:hover': { bgcolor: '#f8fafc' },
+                                    width: 40,
+                                    height: 40
+                                }}
+                            >
+                                <ArrowBackIcon />
+                            </IconButton>
+                            <Box>
+                                <Typography variant="h5" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.5px', lineHeight: 1.2 }}>
+                                    {selectedDept.name} Projects
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: '#64748b', display: 'block', mt: 0.2 }}>
+                                    {selectedDept.projectCount} projects found • {
+                                        viewMode === 'baseDept' ? 'Base Dept View' :
+                                            viewMode === 'studentsView' ? 'Students View' :
+                                                viewMode === 'guideView' ? 'Guide View' :
+                                                    viewMode === 'coGuideView' ? 'Co-Guide View' : 'HOD View'
+                                    }
+                                </Typography>
+                            </Box>
+                        </Stack>
+
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ width: { xs: '100%', sm: 'auto' }, justifyContent: 'flex-end' }}>
+                            <SearchBar
+                                value={localSearchQuery}
+                                onChange={(e) => setLocalSearchQuery(e.target.value)}
+                                onClear={() => setLocalSearchQuery("")}
+                                placeholder="Search Data"
+                            />
+
+                            <Button
+                                variant={selectionMode ? "contained" : "outlined"}
+                                color={selectionMode ? "secondary" : "primary"}
+                                startIcon={selectionMode ? <CloseIcon /> : <CheckBoxIcon />}
+                                onClick={() => {
+                                    setSelectionMode(!selectionMode);
+                                    setSelectedIds([]);
+                                }}
+                                size="small"
+                                sx={{ borderRadius: '10px', height: 40 }}
+                            >
+                                {selectionMode ? "Cancel Selection" : "Select"}
+                            </Button>
+                            <Button
+                                variant="contained"
+                                size="small"
+                                onClick={() => context.setSection && context.setSection("projects", { openAdd: true, defaultDept: selectedDept.name })}
+                                sx={{ borderRadius: '10px', height: 40 }}
+                            >
+                                Add Project
+                            </Button>
+                        </Stack>
+                    </Stack>
+
+                    {selectionMode && (
+                        <Paper
+                            elevation={0}
                             sx={{
-                                bgcolor: '#fff',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                                '&:hover': { bgcolor: '#f8fafc' }
+                                p: 2,
+                                mb: 3,
+                                bgcolor: alpha(theme.palette.secondary.main, 0.04),
+                                borderRadius: '16px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 2,
+                                border: `1px solid ${alpha(theme.palette.secondary.main, 0.1)}`,
+                                animation: 'fadeIn 0.3s ease'
                             }}
                         >
-                            <ArrowBackIcon />
-                        </IconButton>
-                        <Box>
-                            <Typography variant="h4" sx={{ fontWeight: 800, color: '#0f172a', letterSpacing: '-0.5px' }}>
-                                {selectedDept.name} Projects
+                            <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.secondary.dark }}>
+                                {selectedIds.length} projects selected
                             </Typography>
-                            <Typography variant="subtitle1" sx={{ color: '#64748b', mt: 0.5 }}>
-                                {selectedDept.projectCount} active projects offering seats for this department
-                            </Typography>
-                        </Box>
-                    </Stack>
+                            <Button
+                                variant="outlined"
+                                color="secondary"
+                                size="small"
+                                onClick={() => setSelectedIds(filteredDeptProjects.map(p => p._id))}
+                                sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700 }}
+                            >
+                                Select All ({filteredDeptProjects.length})
+                            </Button>
+                            {selectedIds.length > 0 && (
+                                <>
+                                    <Button
+                                        variant="contained"
+                                        color="secondary"
+                                        size="small"
+                                        onClick={handleExportSelected}
+                                        sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700 }}
+                                    >
+                                        Export Selected
+                                    </Button>
+                                    <Button
+                                        variant="contained"
+                                        color="error"
+                                        size="small"
+                                        onClick={handleBulkDelete}
+                                        sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700 }}
+                                    >
+                                        Delete Selected
+                                    </Button>
+                                </>
+                            )}
+                        </Paper>
+                    )}
 
                     <DataTable
                         columns={columns}
-                        rows={selectedDept.projects}
+                        rows={filteredDeptProjects}
                         loading={false}
-                        emptyMessage="No projects available for this department."
+                        emptyMessage="No projects found matching your search."
                         stickyHeader={false}
+                        selectionMode={selectionMode}
+                        selectedIds={selectedIds}
+                        onSelectOne={handleSelectOne}
+                        onSelectAll={handleSelectAll}
+                    />
+
+                    <ConfirmDialog
+                        open={bulkDeleteOpen}
+                        onCancel={() => setBulkDeleteOpen(false)}
+                        onConfirm={confirmBulkDelete}
+                        title="Bulk Delete Projects"
+                        content={`Are you sure you want to delete ${selectedIds.length} projects? This action cannot be undone.`}
+                        confirmText="Delete All"
+                        confirmColor="error"
                     />
                 </>
             )}
