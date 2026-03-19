@@ -8,18 +8,15 @@ function bindConnectionListeners() {
   listenersBound = true;
 
   mongoose.connection.on('error', (err) => {
-    // eslint-disable-next-line no-console
     console.error('MongoDB connection error:', err.message);
   });
 
   mongoose.connection.on('disconnected', () => {
-    // eslint-disable-next-line no-console
     console.warn('MongoDB disconnected');
   });
 
   process.on('SIGINT', async () => {
     await mongoose.connection.close();
-    // eslint-disable-next-line no-console
     console.log('MongoDB connection closed due to app termination');
     process.exit(0);
   });
@@ -40,7 +37,6 @@ async function connectDB() {
     autoIndex: !env.IS_PRODUCTION
   });
 
-  // eslint-disable-next-line no-console
   console.log('MongoDB connected');
   return mongoose.connection;
 }

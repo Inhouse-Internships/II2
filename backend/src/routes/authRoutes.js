@@ -1,12 +1,3 @@
-/**
- * Auth Routes
- *
- * Changes from original:
- * 1. Added `authRateLimit` middleware to brute-force-sensitive endpoints:
- *    /login, /forgot-password, /send-otp, /reset-password, /verify-otp
- *    Limits: 10 requests per 15-minute window per IP.
- */
-
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');

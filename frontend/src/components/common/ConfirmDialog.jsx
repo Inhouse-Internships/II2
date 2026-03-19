@@ -1,20 +1,3 @@
-/**
- * ConfirmDialog — enhanced reusable confirmation dialog.
- *
- * Changes from original:
- * 1. Added `aria-labelledby` and `aria-describedby` for full accessibility.
- * 2. Added `maxWidth="xs"` so the dialog is appropriately sized on desktop
- *    without being a large empty modal.
- * 3. Added `fullWidth` so it fills the xs breakpoint cleanly on mobile.
- * 4. Cancel button is now always rendered first (matches standard UI conventions:
- *    destructive/confirm action on the right, escape on the left).
- * 5. `disableEscapeKeyDown={false}` (default) — pressing Escape correctly
- *    cancels the dialog, consistent with browser-native confirm() behavior.
- * 6. Added `loading` prop — shows spinner on confirm button for async operations
- *    and disables both buttons to prevent double submission.
- * 7. Hoisted dialog title ID to avoid re-creation on render.
- */
-
 import React, { useId } from 'react';
 import {
   Dialog,

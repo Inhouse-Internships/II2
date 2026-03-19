@@ -1,14 +1,3 @@
-/**
- * Mailer — nodemailer transporter with connection pooling.
- *
- * Changes from original:
- * 1. Added `pool: true`, `maxConnections`, and `maxMessages` for connection
- *    reuse — eliminates ~80ms SMTP handshake cost per email.
- * 2. Added `connectionTimeout` and `greetingTimeout` to prevent hanging
- *    if the SMTP server is unreachable.
- * 3. Added `verifyTransporter()` helper for health-check / startup validation.
- */
-
 const nodemailer = require('nodemailer');
 const env = require('./config/env');
 
@@ -48,7 +37,6 @@ if (env.SMTP_USER && env.SMTP_PASS) {
  */
 async function sendMail({ to, subject, text, html, attachments = [] }) {
   if (!transporter) {
-    // eslint-disable-next-line no-console
     console.warn('[mailer] SMTP credentials not configured — email send skipped.');
     return { skipped: true };
   }
@@ -73,7 +61,6 @@ async function verifyTransporter() {
     await transporter.verify();
     return true;
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.warn('[mailer] SMTP verification failed:', err.message);
     return false;
   }

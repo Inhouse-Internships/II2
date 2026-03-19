@@ -1,14 +1,3 @@
-/**
- * Analytics Controller — with in-memory caching layer.
- *
- * Changes from original:
- * 1. Added `cacheGet` / `cacheSet` around `getUniversityAnalytics` —
- *    repeated admin dashboard loads now return in ~5ms instead of ~500ms.
- * 2. Cache TTL: 2 minutes (configurable via ANALYTICS_CACHE_TTL_MS env var).
- * 3. Cache is automatically invalidated when student/task data changes
- *    (call `invalidateAnalyticsCache()` from relevant controllers).
- */
-
 const Task = require('../models/Task');
 const TaskSubmission = require('../models/TaskSubmission');
 const Project = require('../models/Project');

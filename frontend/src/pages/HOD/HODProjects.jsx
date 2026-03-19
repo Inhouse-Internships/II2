@@ -628,7 +628,7 @@ export default function HODProjects(props) {
 
             <ConfirmDialog open={deleteConfirmOpen} title="Delete Project" message="Delete this project?" onConfirm={confirmDeleteProject} onCancel={() => setDeleteConfirmOpen(false)} confirmColor="error" />
             <ConfirmDialog open={statusConfirmOpen} title="Toggle Status" message="Toggle project status?" onConfirm={confirmToggleStatus} onCancel={() => setStatusConfirmOpen(false)} />
-            <ConfirmDialog open={bulkDeleteConfirmOpen} title="Bulk Delete" message={`Delete ${selectedIds.length} projects?`} onConfirm={() => console.log('bulk delete')} onCancel={() => setBulkDeleteConfirmOpen(false)} confirmColor="error" />
+            <ConfirmDialog open={bulkDeleteConfirmOpen} title="Bulk Delete" message={`Delete ${selectedIds.length} projects?`} onConfirm={() => () => {}} onCancel={() => setBulkDeleteConfirmOpen(false)} confirmColor="error" />
         </Box>
     );
 }

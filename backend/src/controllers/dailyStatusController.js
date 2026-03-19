@@ -5,11 +5,9 @@ const { successResponse } = require('../utils/response');
 // Submit status (Student)
 exports.submitStatus = async (req, res, next) => {
     try {
-        console.log('Daily Status Submission Body:', req.body);
         const { project, projectId: pId, workDone, blockers, hoursSpent, date } = req.body;
         const finalProjectId = project || pId;
 
-        console.log('Final Project ID extracted:', finalProjectId);
 
         if (!finalProjectId) {
             return res.status(400).json({ success: false, message: 'Project ID is required' });

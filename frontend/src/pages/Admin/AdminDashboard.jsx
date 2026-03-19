@@ -1,19 +1,3 @@
-/**
- * AdminDashboard — Refactored
- *
- * Changes from original:
- * 1. FIX P-5: All inline `sx` prop objects hoisted to module-level constants.
- *    Each inline object was creating a new reference on every render, forcing
- *    MUI's internal style engine to re-compute styles needlessly.
- * 2. FIX P-5: Added skeleton loading cards (MUI Skeleton) instead of a
- *    full-page spinner — content layout is visible immediately, numbers fill in.
- * 3. Removed unused imports: `Suspense`, `lazy`, `GroupIcon`, `Paper` (used inline
- *    via sx), `Avatar` moved to be truly used with DataTable columns.
- * 4. `fetchDashboardData` wrapped with `useCallback` to prevent stale closure.
- * 5. Removed `loading` check that blocked the entire render — skeleton state
- *    is shown inline instead for a much better perceived performance.
- */
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Grid, Card, CardContent,

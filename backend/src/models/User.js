@@ -1,13 +1,3 @@
-/**
- * User Model
- *
- * Changes from original:
- * 1. Added `tokenVersion` field — incremented on password change or explicit logout
- *    to invalidate all previously issued JWTs for that user.
- * 2. Email is stored exactly as the user provides it (casing preserved).
- * 3. Ensured `email` index is leveraged by removing regex need in controllers.
- */
-
 const mongoose = require('mongoose');
 const { ROLES, USER_STATUS } = require('../utils/constants');
 

@@ -1,14 +1,3 @@
-/**
- * Authenticate Middleware
- *
- * Changes from original:
- * 1. Added `tokenVersion` check — if the JWT's `tv` claim does not match
- *    the user's stored `tokenVersion`, the token is rejected. This enables
- *    true logout and immediate token revocation on password change.
- * 2. Selected `tokenVersion` from DB (it has `select: false` on the schema).
- * 3. Attaches both `req.user` (DB document) and `req.tokenPayload` (decoded JWT).
- */
-
 const User = require('../models/User');
 const AppError = require('../utils/appError');
 const asyncHandler = require('../utils/asyncHandler');

@@ -1,15 +1,3 @@
-/**
- * ErrorBoundary
- *
- * Changes from original:
- * 1. SECURITY: Stack traces are now hidden in production builds.
- *    Exposing stack traces to end users leaks internal file paths and
- *    implementation details that aid attackers.
- * 2. Added `componentDidCatch` error reporting hook — logs to console
- *    in dev; in production, a monitoring service call can be added here.
- * 3. Inline sx objects hoisted to module-level constants (P-5 pattern).
- */
-
 import React from 'react';
 import { Box, Typography, Button, Paper } from '@mui/material';
 import { WarningAmber as WarningAmberIcon } from '@mui/icons-material';
@@ -78,7 +66,6 @@ class ErrorBoundaryInner extends React.Component {
   componentDidCatch(error, errorInfo) {
     // In development: log full details to console
     if (!IS_PRODUCTION) {
-      // eslint-disable-next-line no-console
       console.error('[ErrorBoundary] Caught error:', error, errorInfo);
     }
     // In production: hook into your error monitoring service here, e.g.:

@@ -1,11 +1,3 @@
-/**
- * Password utilities.
- *
- * Changes from original:
- * 1. Strengthened `validatePasswordStrength` — now requires uppercase + digit
- *    in addition to minimum 8-character length.
- */
-
 const bcrypt = require('bcryptjs');
 const env = require('../config/env');
 

@@ -1,15 +1,3 @@
-/**
- * OTP Service — in-memory store with the following hardening additions:
- *
- * Changes from original:
- * 1. Added per-OTP attempt counter — after 5 failed verifications, the OTP
- *    is invalidated and must be re-requested. Prevents 6-digit brute force.
- * 2. `MAX_ATTEMPTS` constant for easy configuration.
- *
- * NOTE: This store is in-process memory. For multi-instance deployments,
- * replace Map with Redis: `SET key value EX ttlSeconds NX`
- */
-
 const crypto = require('crypto');
 
 const MAX_ATTEMPTS = 5;

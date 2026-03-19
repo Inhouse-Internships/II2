@@ -1,18 +1,3 @@
-/**
- * Vite Configuration
- *
- * Changes from original:
- * 1. FIX P-4: Removed `@mui/material` and `@mui/icons-material` from
- *    `optimizeDeps.include` — pre-bundling the entire MUI package prevents
- *    tree-shaking. Vite/esbuild now tree-shakes MUI naturally via named imports.
- * 2. FIX P-4: Improved `manualChunks` function — splits xlsx, notistack,
- *    emotion, MUI core, and MUI icons into separate chunks. This keeps the
- *    initial vendor chunk lean and allows browsers to cache each chunk
- *    independently (xlsx is large and rarely changes).
- * 3. Kept all network / server / warmup config from original (already solid).
- * 4. Added `console` drop in production build to remove all console.* calls.
- */
-
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import os from 'os';
@@ -20,13 +5,14 @@ import os from 'os';
 function getNetworkIp() {
   const interfaces = os.networkInterfaces();
   for (const name in interfaces) {
+    if (/virtual|vbox|vmware|hyper-v/i.test(name)) continue;
     for (const info of interfaces[name]) {
-      if (info.family === 'IPv4' && !info.internal) {
+      if (info.family === 'IPv4' && !info.internal && info.address !== '192.168.56.1') {
         return info.address;
       }
     }
   }
-  return 'localhost';
+  return '127.0.0.1';
 }
 
 export default defineConfig(({ mode }) => {
@@ -52,7 +38,6 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
 
-    // FIX P-4: Only pre-bundle packages that are NOT tree-shakeable.
     // MUI is now excluded — Vite + esbuild tree-shake it via named imports.
     optimizeDeps: {
       include: [
@@ -104,7 +89,6 @@ export default defineConfig(({ mode }) => {
       reportCompressedSize: false,
       rollupOptions: {
         output: {
-          // FIX P-4: Fine-grained chunk splitting for better caching
           manualChunks(id) {
             // React core — changes rarely, aggressive long-term caching
             if (

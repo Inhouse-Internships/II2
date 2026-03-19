@@ -1,18 +1,3 @@
-/**
- * apiFetch — centralized fetch wrapper.
- *
- * Changes from original:
- * 1. FIX P-3 / QA-3: Cache now stores parsed JSON data (not Response Proxy objects).
- *    The old approach cached a Proxy around an already-consumed Response body,
- *    which caused silent failures on cache hits. Now the cache stores plain objects.
- * 2. FIX QA-3: Added LRU-style cache eviction with MAX_CACHE_SIZE = 100 entries
- *    to prevent unbounded memory growth in long sessions.
- * 3. Simplified: removed the `new Proxy(response, ...)` wrapper — all callers
- *    now receive a plain response-like object with `.ok`, `.status`, `.json()`.
- * 4. Cache returns an object that matches the same interface as a live response,
- *    so no call-site changes are needed.
- */
-
 import { API_BASE_URL } from '../config/env';
 import { getAuthToken } from '../utils/auth';
 

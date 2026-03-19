@@ -1,16 +1,3 @@
-/**
- * Auth Controller — refactored for production:
- *
- * Changes from original:
- * 1. Removed inline `require('fs')` + `fs.appendFileSync` (event loop blocking) →
- *    replaced with async `auditLogin()` logger
- * 2. Removed local `sanitizeUser` and `normalizeEmail` → imported from userUtils
- * 3. Email queries changed from `$regex` (bypasses index) to direct equality
- *    (works because normalizeEmail enforces lowercase before save and lookup)
- * 4. OTP attempt limiting added to prevent 6-digit brute force
- * 5. `escapeRegex` no longer needed for email — removed from email lookups
- */
-
 const User = require('../models/User');
 const Setting = require('../models/Setting');
 const env = require('../config/env');
@@ -215,14 +202,12 @@ const login = asyncHandler(async (req, res) => {
   }
 
   if (!user) {
-    // FIX S-3: Non-blocking async audit log
     auditLogin('FAIL', `User not found for input "${req.body.email}" (IP: ${req.ip})`);
     throw new AppError(401, 'Invalid credentials');
   }
 
   const passwordMatched = await comparePassword(password, user.password);
   if (!passwordMatched) {
-    // FIX S-3: Non-blocking async audit log
     auditLogin('FAIL', `Password mismatch for user "${user.email}" (IP: ${req.ip})`);
     throw new AppError(401, 'Invalid credentials');
   }
@@ -233,7 +218,6 @@ const login = asyncHandler(async (req, res) => {
     tv: user.tokenVersion || 0  // token version for invalidation support
   });
 
-  // FIX S-3: Non-blocking async audit log
   auditLogin('SUCCESS', `User "${user.email}" (Role: ${user.role}) logged in (IP: ${req.ip})`);
 
   return successResponse(res, {

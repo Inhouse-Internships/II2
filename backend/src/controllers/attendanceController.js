@@ -289,7 +289,6 @@ const markSelfAttendance = asyncHandler(async (req, res) => {
     const { latitude, longitude, accuracy } = req.body;
     const user = req.user;
 
-    console.log(`[Self-Attendance] User: ${user._id} | Accuracy: ${accuracy}m | Coords: ${latitude}, ${longitude}`);
 
     if (latitude === undefined || longitude === undefined || accuracy === undefined) {
         throw new AppError(400, 'Latitude, longitude, and accuracy are required');
@@ -325,7 +324,6 @@ const markSelfAttendance = asyncHandler(async (req, res) => {
         return `${displayH}:${String(mm).padStart(2, '0')} ${suffix}`;
     };
 
-    console.log(`[Self-Attendance] IST Time: ${hours}:${String(minutes).padStart(2, '0')} | Window: ${fmtTime(startTimeMinutes)}-${fmtTime(endTimeMinutes)} | TimeCheckDisabled: ${timeCheckDisabled}`);
 
     if (!timeCheckDisabled && (currentTimeMinutes < startTimeMinutes || currentTimeMinutes > endTimeMinutes)) {
         throw new AppError(403, `Attendance can only be marked between ${fmtTime(startTimeMinutes)} and ${fmtTime(endTimeMinutes)}. Current IST time: ${hours}:${String(minutes).padStart(2, '0')}.`);
@@ -333,7 +331,6 @@ const markSelfAttendance = asyncHandler(async (req, res) => {
 
     // 3. Get Student and Project Details
     const studentData = await User.findById(user._id);
-    console.log(`[Self-Attendance] Student appliedProject: ${studentData?.appliedProject}`);
     if (!studentData.appliedProject) {
         throw new AppError(400, 'No project assigned to you. Please contact your administrator.');
     }

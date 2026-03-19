@@ -55,23 +55,39 @@ function toEmailDomain(value) {
   return normalized.startsWith('@') ? normalized : `@${normalized}`;
 }
 
-const getNetworkIp = require('../utils/getNetworkIp');
+const os = require('os');
+
+function getNetworkIp() {
+  const interfaces = os.networkInterfaces();
+  const candidates = [];
+  for (const name in interfaces) {
+    if (/virtual|vbox|vmware|hyper-v/i.test(name)) continue;
+    for (const info of interfaces[name]) {
+      if (info.family === 'IPv4' && !info.internal && info.address !== '192.168.56.1') {
+        return info.address;
+      }
+    }
+  }
+  return '127.0.0.1';
+}
 
 const nodeEnv = readEnv('NODE_ENV', { defaultValue: 'development' });
 const isProduction = nodeEnv === 'production';
 
 const detectedIp = getNetworkIp();
 const rawHost = readEnv('HOST_IP', { defaultValue: 'auto' });
-const host = (rawHost === 'auto' || !rawHost) ? detectedIp : rawHost;
+const host = (rawHost === 'auto' || !rawHost) ? '0.0.0.0' : rawHost;
+const displayHost = (rawHost === 'auto' || !rawHost) ? detectedIp : rawHost;
 
 const rawMongoUri = readEnv('MONGO_URI', { required: true });
-const mongoUri = rawMongoUri.replace('AUTO_IP', host);
+const mongoUri = rawMongoUri.replace('AUTO_IP', displayHost);
 
 const env = {
   NODE_ENV: nodeEnv,
   IS_PRODUCTION: isProduction,
   PORT: toNumber(readEnv('PORT', { defaultValue: '5000' }), 5000),
   HOST: host,
+  DISPLAY_HOST: displayHost,
   MONGO_URI: mongoUri,
 
   JWT_SECRET: readEnv('JWT_SECRET', { required: true }),
@@ -89,8 +105,8 @@ const env = {
 
   CORS_ORIGINS: [
     ...toList(readEnv('CORS_ORIGINS', { defaultValue: readEnv('CORS_ORIGIN', { defaultValue: '' }) })),
-    `http://${host}:5173`,
-    `http://${host}:5000`,
+    `http://${displayHost}:5173`,
+    `http://${displayHost}:5000`,
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:5000',
@@ -109,11 +125,10 @@ const env = {
 
   OTP_TTL_MINUTES: toNumber(readEnv('OTP_TTL_MINUTES', { defaultValue: '10' }), 10),
   REQUIRE_REGISTRATION_OTP: toBoolean(readEnv('REQUIRE_REGISTRATION_OTP', { defaultValue: 'true' }), true),
-  FRONTEND_URL: readEnv('FRONTEND_URL', { defaultValue: `http://${host}:5173` })
+  FRONTEND_URL: readEnv('FRONTEND_URL', { defaultValue: `http://${displayHost}:5173` })
 };
 
 if (env.JWT_SECRET.length < 16) {
-  // eslint-disable-next-line no-console
   console.warn('JWT_SECRET is shorter than recommended minimum length (16).');
 }
 

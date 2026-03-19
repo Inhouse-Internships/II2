@@ -1,16 +1,3 @@
-/**
- * Express application setup.
- *
- * Changes from original:
- * 1. Helmet configured with explicit Content-Security-Policy, HSTS, and
- *    referrer policy instead of using permissive defaults.
- * 2. CORS origin list consolidated — removed hardcoded production URLs
- *    from app.js (they should only live in env config).
- * 3. Added X-Request-Id header to every response for distributed debugging.
- * 4. Separated rate-limit concerns: global limiter remains for all routes;
- *    auth-specific strict limiter is applied at the route level in authRoutes.js.
- */
-
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
