@@ -110,7 +110,9 @@ const env = {
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://localhost:5000',
-    'http://127.0.0.1:5000'
+    'http://127.0.0.1:5000',
+    'https://inhouseinternship.mooo.com',
+    'http://inhouseinternship.mooo.com'
   ],
 
   RATE_LIMIT_WINDOW_MS: toNumber(readEnv('RATE_LIMIT_WINDOW_MS', { defaultValue: String(15 * 60 * 1000) }), 15 * 60 * 1000),
