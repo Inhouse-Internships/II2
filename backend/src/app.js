@@ -115,12 +115,20 @@ app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/batch', require('./routes/batchRoutes'));
 app.use('/api/daily-status', require('./routes/dailyStatusRoutes'));
 
-app.get('/', (req, res) =>
-  successResponse(res, { service: 'Inhouse Internships 2.0 Backend' })
-);
+// ── Serve Frontend ────────────────────────────────────────────────────────────
+const path = require('path');
+const frontendDistPath = path.join(__dirname, '..', '..', 'frontend', 'dist');
 
-// ── Error handling (must be last) ─────────────────────────────────────────────
-app.use(notFound);
+// Serve static files from the React app
+app.use(express.static(frontendDistPath));
+
+// For API routes not found by the above routers, return JSON 404
+app.use('/api', notFound);
+
+// For all other GET requests (e.g. browser navigation), serve the React app
+app.get('*all', (req, res) => {
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
+});
 app.use(errorHandler);
 
 module.exports = app;
