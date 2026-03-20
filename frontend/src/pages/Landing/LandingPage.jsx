@@ -437,7 +437,7 @@ export default function LandingPage() {
                                 }
                             }}
                         >
-                            ADITYA UNIVERSITY
+                            ADITYA UNIVERSITY PRESENTS
                         </Typography>
                         <Typography
                             variant="h1"
