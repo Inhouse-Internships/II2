@@ -6,22 +6,24 @@ services:
     container_name: ii2-mongodb
     ports:
       - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
 
   backend:
-    build: .
+    build: ./backend
     container_name: ii2-backend
     ports:
       - "5000:5000"
     depends_on:
       - mongodb
     environment:
-      - NODE_ENV=production
       - MONGO_URI=mongodb://mongodb:27017/ii2db
       - PORT=5000
-      - JWT_SECRET=${JWT_SECRET:-supersecretkey123}
-      - CORS_ORIGINS=http://localhost:5000,http://127.0.0.1:5000,https://inhouseinternship.mooo.com
+      - JWT_SECRET=supersecretkey123
+      - CLIENT_URL=http://172.7.189.16:3001
 
-volumes:
-  mongodb_data:
+  frontend:
+    build: ./frontend
+    container_name: ii2-frontend
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
