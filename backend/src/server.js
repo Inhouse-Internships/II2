@@ -22,12 +22,7 @@ async function startServer() {
   // 3. Start HTTP server
   const server = http.createServer(app);
 
-  server.listen(env.PORT, env.HOST, () => {
-    console.log(`[server] Running on http://${env.DISPLAY_HOST}:${env.PORT} (${env.NODE_ENV})`);
-    if (env.HOST === '0.0.0.0') {
-      console.log(`[server] Also reachable via http://localhost:${env.PORT}`);
-    }
-  });
+  server.listen(env.PORT, env.HOST);
 
   // 4. Graceful shutdown handler
   const shutdown = async (signal) => {
@@ -75,5 +70,5 @@ startServer().catch((error) => {
 // Nodemon Trigger: Clear EADDRINUSE
 
 // wake up
- 
- 
+
+

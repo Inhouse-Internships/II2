@@ -54,9 +54,14 @@ function normalizeError(error) {
 function errorHandler(err, req, res, next) {
   const normalized = normalizeError(err);
 
-  // Log ALL errors to the console temporarily
-  console.error(`ERROR [${req.method} ${req.url}] Status: ${normalized.statusCode}:`, err.message);
-  if (err.stack) console.error(err.stack);
+  // Only log significant errors. Suppress stack traces for 4xx client errors to reduce terminal noise.
+  if (normalized.statusCode >= 500) {
+    console.error(`[CRITICAL] [${req.method} ${req.url}] Status: ${normalized.statusCode}:`, err.message);
+    if (err.stack) console.error(err.stack);
+  } else {
+    // Optional: Concise logging for 4xx if needed, otherwise leave silent.
+    // console.warn(`[WARN] [${req.method} ${req.url}] Status: ${normalized.statusCode}: ${err.message}`);
+  }
 
   // Still follow production rules for the response body if you want, 
   // but let's at least show the message and details.

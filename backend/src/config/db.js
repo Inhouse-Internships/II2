@@ -37,7 +37,7 @@ async function connectDB() {
     autoIndex: !env.IS_PRODUCTION
   });
 
-  console.log('MongoDB connected');
+
   return mongoose.connection;
 }
 

@@ -6,11 +6,7 @@
 node_modules/
 **/node_modules/
 
-# ── Environment files (NEVER commit — contain secrets) ───────
-.env
-**/.env
-backend/.env
-frontend/.env
+# ── Environment files (Allow .env for deployment) ──────────────
 # Allow .env.example files (no real secrets, documentation only)
 !.env.example
 !**/.env.example

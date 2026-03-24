@@ -64,10 +64,6 @@ const sendOtp = asyncHandler(async (req, res) => {
   });
 
   const purpose = OTP_PURPOSE.REGISTRATION;
-  if (!env.IS_PRODUCTION) {
-    // eslint-disable-next-line no-console
-    console.log(`[DEV] OTP for ${email}: ${otp} (${purpose})`);
-  }
 
   try {
     await sendOtpEmail(email, otp, purpose);
@@ -247,10 +243,6 @@ const forgotPassword = asyncHandler(async (req, res) => {
   const otp = await issueOtp({ email, purpose: OTP_PURPOSE.PASSWORD_RESET, ttlMinutes: env.OTP_TTL_MINUTES });
 
   const purpose = OTP_PURPOSE.PASSWORD_RESET;
-  if (!env.IS_PRODUCTION) {
-    // eslint-disable-next-line no-console
-    console.log(`[DEV] OTP for ${email}: ${otp} (${purpose})`);
-  }
 
   try {
     await sendOtpEmail(email, otp, purpose);
