@@ -64,15 +64,17 @@ class ErrorBoundaryInner extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // In development: log full details to console
-    if (!IS_PRODUCTION) {
-      console.error('[ErrorBoundary] Caught error:', error, errorInfo);
-    }
+    // Log full details to console (temporarily allowing in production for debugging)
+    console.error('[ErrorBoundary] Caught error:', error, errorInfo);
     // In production: hook into your error monitoring service here, e.g.:
     // reportErrorToService(error, errorInfo);
   }
 
   render() {
+    if (this.state.hasError) {
+      // return this.props.children; // This was wrong anyway, it should be below
+    }
+
     if (!this.state.hasError) {
       return this.props.children;
     }
@@ -89,27 +91,25 @@ class ErrorBoundaryInner extends React.Component {
             An unexpected error occurred. Please try reloading the page.
           </Typography>
 
-          {/* SECURITY: Only show technical error details in development */}
-          {!IS_PRODUCTION ? (
-            <Box sx={errorBoxSx}>
-              <Typography variant="subtitle2" sx={errorLabelSx}>
-                Error Details (dev only):
-              </Typography>
-              <Typography variant="caption" sx={errorTextSx}>
-                {this.state.error?.message || this.state.error?.toString() || 'Unknown error'}
-              </Typography>
-              {this.state.error?.stack && (
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="caption" sx={stackLabelSx}>
-                    Stack Trace:
-                  </Typography>
-                  <Typography variant="caption" sx={stackTextSx}>
-                    {this.state.error.stack.split('\n').slice(0, 5).join('\n')}
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          ) : null}
+          {/* Temporarily show technical error details in all environments */}
+          <Box sx={errorBoxSx}>
+            <Typography variant="subtitle2" sx={errorLabelSx}>
+              Error Details:
+            </Typography>
+            <Typography variant="caption" sx={errorTextSx}>
+              {this.state.error?.message || this.state.error?.toString() || 'Unknown error'}
+            </Typography>
+            {this.state.error?.stack && (
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="caption" sx={stackLabelSx}>
+                  Stack Trace:
+                </Typography>
+                <Typography variant="caption" sx={stackTextSx}>
+                  {this.state.error.stack.split('\n').slice(0, 10).join('\n')}
+                </Typography>
+              </Box>
+            )}
+          </Box>
 
           <Button
             variant="contained"

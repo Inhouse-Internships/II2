@@ -7,6 +7,7 @@ const AppError = require('../utils/appError');
 const { successResponse } = require('../utils/response');
 const { hashPassword, validatePasswordStrength } = require('../utils/password');
 const { ROLES, USER_STATUS, PROJECT_STATUS, SETTING_KEYS } = require('../utils/constants');
+const { invalidateAnalyticsCache } = require('./analyticsController');
 
 function ensureStudentAccess(req, studentId) {
   if (String(req.user._id) !== String(studentId)) {
@@ -219,6 +220,7 @@ const getDashboard = asyncHandler(async (req, res) => {
   // Ensure projects array for available projects is also processed
   const projects = await Project.find({ status: PROJECT_STATUS.OPEN })
     .populate('departments.department')
+    .populate('baseDept guideDept coGuideDept', 'name')
     .lean();
 
   const allOpenProjectIds = projects.map((project) => project._id);
@@ -250,10 +252,10 @@ const getDashboard = asyncHandler(async (req, res) => {
       projectOutcome: project.projectOutcome || '',
       guide: guide ? guide.name : (project.guide || ''),
       guideEmpId: guide ? guide.employeeId : (project.guideEmpId || ''),
-      guideDept: guide ? guide.department : (project.guideDept || ''),
+      guideDept: guide ? guide.department : (project.guideDept ? (project.guideDept.name || project.guideDept) : ''),
       coGuide: coGuide ? coGuide.name : (project.coGuide || ''),
       coGuideEmpId: coGuide ? coGuide.employeeId : (project.coGuideEmpId || ''),
-      coGuideDept: coGuide ? coGuide.department : (project.coGuideDept || ''),
+      coGuideDept: coGuide ? coGuide.department : (project.coGuideDept ? (project.coGuideDept.name || project.coGuideDept) : ''),
       seatsAvailable: studentDepartmentEntry ? studentDepartmentEntry.seats : 0,
       isEligible: Boolean(studentDepartmentEntry),
       departments,
@@ -301,7 +303,9 @@ const applyForProject = asyncHandler(async (req, res) => {
     throw new AppError(400, 'You can apply for a maximum of 5 projects only');
   }
 
-  const project = await Project.findById(projectId).populate('departments.department');
+  const project = await Project.findById(projectId)
+    .populate('departments.department')
+    .populate('baseDept guideDept coGuideDept', 'name');
   if (!project) {
     throw new AppError(404, 'Project not found');
   }
@@ -348,6 +352,7 @@ const applyForProject = asyncHandler(async (req, res) => {
   }
 
   await student.save();
+  invalidateAnalyticsCache();
   return successResponse(res, { status: applicationStatus }, 'Application submitted successfully');
 });
 
@@ -365,7 +370,9 @@ const withdrawApplication = asyncHandler(async (req, res) => {
   // If a specific project ID is provided, find and remove it
   if (projectId === 'ALL') {
     if (student.appliedProject) {
-      const project = await Project.findById(student.appliedProject).populate('departments.department');
+      const project = await Project.findById(student.appliedProject)
+        .populate('departments.department')
+        .populate('baseDept guideDept coGuideDept', 'name');
       if (project && project.allowWithdrawal === false) {
         throw new AppError(403, 'Withdrawal is disabled for your primary project');
       }
@@ -386,7 +393,9 @@ const withdrawApplication = asyncHandler(async (req, res) => {
   } else if (projectId) {
     if (student.appliedProject && String(student.appliedProject) === String(projectId)) {
       // Withdrawing from the primary project
-      const project = await Project.findById(projectId).populate('departments.department');
+      const project = await Project.findById(projectId)
+        .populate('departments.department')
+        .populate('baseDept guideDept coGuideDept', 'name');
       if (project && project.allowWithdrawal === false) {
         throw new AppError(403, 'Withdrawal is disabled for this project');
       }
@@ -425,7 +434,9 @@ const withdrawApplication = asyncHandler(async (req, res) => {
       throw new AppError(400, 'No active application found');
     }
 
-    const project = await Project.findById(student.appliedProject).populate('departments.department');
+    const project = await Project.findById(student.appliedProject)
+      .populate('departments.department')
+      .populate('baseDept guideDept coGuideDept', 'name');
     if (project && project.allowWithdrawal === false) {
       throw new AppError(403, 'Withdrawal is disabled for this project');
     }
@@ -457,6 +468,7 @@ const withdrawApplication = asyncHandler(async (req, res) => {
   }
 
   await student.save();
+  invalidateAnalyticsCache();
   return successResponse(res, {}, 'Application withdrawn successfully');
 });
 
@@ -493,6 +505,7 @@ const selectFinalProject = asyncHandler(async (req, res) => {
 
   await student.save();
 
+  invalidateAnalyticsCache();
   return successResponse(res, { student }, 'Project selection finalized successfully. Welcome to Level 2!');
 });
 
@@ -552,6 +565,7 @@ const reorderApplications = asyncHandler(async (req, res) => {
   };
 
   await User.findByIdAndUpdate(studentId, { $set: updateData });
+  invalidateAnalyticsCache();
   return successResponse(res, {}, 'Applications reordered successfully');
 });
 

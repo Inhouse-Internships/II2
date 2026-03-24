@@ -34,4 +34,18 @@ function normalizeEmail(rawEmail) {
   return String(rawEmail).trim();
 }
 
-module.exports = { sanitizeUser, escapeRegex, normalizeEmail };
+/**
+ * Checks if an email uses a prohibited public domain.
+ * Throws an AppError if prohibited.
+ * @param {string} email
+ */
+function checkEmailProhibited(email) {
+  if (!email) return;
+  const lowerEmail = email.toLowerCase();
+  if (lowerEmail.endsWith('@gmail.com') || lowerEmail.endsWith('@outlook.com')) {
+    const AppError = require('./appError'); // Local require to avoid circular dependency if any, but usually fine
+    throw new AppError(400, 'Registration or login with @gmail.com or @outlook.com is strictly prohibited.');
+  }
+}
+
+module.exports = { sanitizeUser, escapeRegex, normalizeEmail, checkEmailProhibited };

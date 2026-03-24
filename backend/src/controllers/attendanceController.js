@@ -425,9 +425,15 @@ const getAttendanceAnalytics = asyncHandler(async (req, res) => {
 
     const projects = await Project.find(projectMatch)
         .select('_id title projectId guide coGuide baseDept status')
+        .populate('baseDept', 'name')
         .lean();
 
-    const projectIds = projects.map(p => p._id);
+    const mappedProjects = projects.map(p => ({
+        ...p,
+        baseDept: p.baseDept ? (p.baseDept.name || p.baseDept) : ''
+    }));
+
+    const projectIds = mappedProjects.map(p => p._id);
 
     // Aggregate attendance data in one go
     const attendanceStats = await Attendance.aggregate([
@@ -467,7 +473,7 @@ const getAttendanceAnalytics = asyncHandler(async (req, res) => {
         .select('_id name studentId appliedProject')
         .lean();
 
-    const finalizedProjects = projects.map(p => {
+    const finalizedProjects = mappedProjects.map(p => {
         const pId = String(p._id);
         const projectStudents = students.filter(s => String(s.appliedProject) === pId);
 

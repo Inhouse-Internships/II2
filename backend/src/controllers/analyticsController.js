@@ -142,9 +142,9 @@ const getDepartmentAnalytics = asyncHandler(async (req, res) => {
     }, "Department Analytics (Empty)");
   }
 
-  // Find all projects where baseDept matches the departmentName
+  // Find all projects where baseDept matches the department ObjectId
   const [projects, students, guides] = await Promise.all([
-    Project.find({ baseDept: departmentName })
+    Project.find({ baseDept: deptDoc._id })
       .select('_id title projectId guide coGuide')
       .sort({ status: -1, createdAt: -1 })
       .lean(),

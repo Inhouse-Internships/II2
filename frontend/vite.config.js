@@ -2,6 +2,26 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import os from 'os';
 
+// Prevent Vite preview / dev from crashing due to common lingering browser socket errors.
+process.on('uncaughtException', (err) => {
+  if (err.code === 'ECONNRESET' || err.code === 'ECONNABORTED') {
+    // These are common when browser tabs are closed or refreshed during proxying/HMR.
+    // We log them as a single line to keep the console clean but don't exit.
+    console.log(`[Vite] Ignored ${err.code} (connection reset by peer/browser).`);
+  } else {
+    console.error('Fatal Uncaught Exception:', err);
+    process.exit(1);
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  if (reason && reason.code === 'ECONNRESET') {
+    console.log('[Vite] Ignored unhandled ECONNRESET rejection.');
+  } else {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  }
+});
+
 function getNetworkIp() {
   const interfaces = os.networkInterfaces();
   for (const name in interfaces) {
@@ -59,6 +79,8 @@ export default defineConfig(({ mode }) => {
 
     server: {
       host,
+      port: 5173,
+      strictPort: true,
       allowedHosts,
       warmup: {
         clientFiles: [
@@ -77,7 +99,16 @@ export default defineConfig(({ mode }) => {
       watch: { usePolling: false, interval: 100 },
       hmr: { timeout: 30000, overlay: true },
       proxy: {
-        '/api': { target: apiTarget, changeOrigin: true, secure: false }
+        '/api': {
+          target: apiTarget,
+          changeOrigin: true,
+          secure: false,
+          configure: (proxy, _options) => {
+            proxy.on('error', (err, _req, _res) => {
+              console.log('Proxy error', err.message);
+            });
+          }
+        }
       }
     },
 
@@ -127,9 +158,19 @@ export default defineConfig(({ mode }) => {
     preview: {
       host,
       port: 5173,
+      strictPort: true,
       allowedHosts,
       proxy: {
-        '/api': { target: apiTarget, changeOrigin: true, secure: false }
+        '/api': {
+          target: apiTarget,
+          changeOrigin: true,
+          secure: false,
+          configure: (proxy, _options) => {
+            proxy.on('error', (err, _req, _res) => {
+              console.log('Proxy error', err.message);
+            });
+          }
+        }
       }
     }
   };

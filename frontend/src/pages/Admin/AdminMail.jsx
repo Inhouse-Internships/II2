@@ -35,7 +35,7 @@ import {
 
 import PageHeader from '../../components/common/PageHeader';
 
-export default function AdminMail() {
+export default function AdminMail(props) {
   const location = useLocation();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
@@ -56,7 +56,7 @@ export default function AdminMail() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    const newRecipients = location.state?.recipients || [];
+    const newRecipients = (location.state?.recipients || props.context?.navState?.recipients) || [];
     if (newRecipients.length > 0) {
       setRecipients((prev) => {
         const combined = [...prev];
@@ -66,9 +66,14 @@ export default function AdminMail() {
         });
         return combined;
       });
-      navigate(location.pathname, { replace: true, state: {} });
+      // Clear navigation state after consumed to avoid re-adding on refresh/mount
+      if (location.state?.recipients) {
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+      // If via setSection, sidebar handles clearing navState usually, 
+      // but we can be extra careful if needed.
     }
-  }, [location.state, navigate]);
+  }, [location.state, navigate, props.context?.navState]);
 
   useEffect(() => {
     sessionStorage.setItem("mailRecipients", JSON.stringify(recipients));

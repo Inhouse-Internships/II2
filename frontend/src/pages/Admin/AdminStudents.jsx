@@ -117,6 +117,7 @@ export default function AdminStudents(props) {
 
   const projectOptions = useMemo(() => [
     { _id: "All", title: "All Projects" },
+    { _id: "assigned", title: "Selected" },
     { _id: "unassigned", title: "Not Selected" },
     ...[...projects].sort((a, b) => a.title.localeCompare(b.title))
   ], [projects]);
@@ -272,10 +273,10 @@ export default function AdminStudents(props) {
     if (programFilter && programFilter !== "All") {
       const selectedProg = programsList.find(p => p.name === programFilter);
       setFilteredDepartments(selectedProg?.departments || []);
-      setYearOptions(selectedProg?.eligibleYears?.sort((a, b) => Number(a) - Number(b)) || []);
+      setYearOptions([...(selectedProg?.eligibleYears || [])].sort((a, b) => Number(a) - Number(b)));
     } else {
       setFilteredDepartments(allDepartments);
-      setYearOptions([]);
+      setYearOptions([1, 2, 3, 4]);
     }
   }, [programFilter, programsList, allDepartments]);
 
@@ -331,7 +332,17 @@ export default function AdminStudents(props) {
     try {
       setLoading(true);
       const res = await apiFetch(`/api/admin/students?${params.toString()}`);
-      if (!res.ok) throw new Error(res.statusText);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        console.error("API error loading students:", {
+          status: res.status,
+          statusText: res.statusText,
+          message: errorData.message || 'No error message provided',
+          error: errorData.error,
+          details: errorData.details
+        });
+        throw new Error(errorData.message || res.statusText);
+      }
       const json = await res.json();
 
       if (json.pagination) {
@@ -343,7 +354,8 @@ export default function AdminStudents(props) {
         setTotalCount(Array.isArray(data) ? data.length : 0);
       }
     } catch (err) {
-      console.error("Failed to load students:", err);
+      console.error("Caught error in loadStudents:", err);
+      enqueueSnackbar(err.message || "Failed to load students", { variant: "error" });
       setStudents([]);
     } finally {
       setLoading(false);
@@ -505,10 +517,10 @@ export default function AdminStudents(props) {
       name: student.name,
       email: student.email,
       phone: student.phone || "",
-      year: student.year || "",
+      year: student.year?.name || student.year || "",
       studentId: student.studentId,
-      department: student.department,
-      program: student.program || "",
+      department: student.department?.name || student.department,
+      program: student.program?.name || student.program || "",
       appliedProject: student.appliedProject ? student.appliedProject._id : "",
       guide: student.guide || "",
       guideDept: student.guideDept || "",
@@ -697,7 +709,11 @@ export default function AdminStudents(props) {
 
   const handleSendMail = () => {
     const selectedStudents = selectedIds.map(id => selectedObjectsCache[id]).filter(Boolean);
-    navigate('/admin/mail', { state: { recipients: selectedStudents } });
+    if (props.context?.setSection) {
+      props.context.setSection('mail', { recipients: selectedStudents });
+    } else {
+      navigate('/admin/mail', { state: { recipients: selectedStudents } });
+    }
   };
 
   const handleMoveLevel = async (level) => {
@@ -940,7 +956,7 @@ export default function AdminStudents(props) {
           {
             id: "guide", label: "Guide", minWidth: 150, render: (s) => {
               const name = s.appliedProject?.guide || s.guide || "-";
-              const dept = s.appliedProject?.guideDept || s.guideDept || "";
+              const dept = s.appliedProject?.guideDept?.name || s.appliedProject?.guideDept || s.guideDept || "";
               return (
                 <Box>
                   <Typography noWrap sx={{ maxWidth: { xs: 120, sm: 160, md: '12vw' }, textOverflow: 'ellipsis', overflow: 'hidden' }} title={name}>{name}</Typography>
@@ -952,7 +968,7 @@ export default function AdminStudents(props) {
           {
             id: "coGuide", label: "Co-Guide", minWidth: 150, render: (s) => {
               const name = s.appliedProject?.coGuide || s.coGuide || "-";
-              const dept = s.appliedProject?.coGuideDept || s.coGuideDept || "";
+              const dept = s.appliedProject?.coGuideDept?.name || s.appliedProject?.coGuideDept || s.coGuideDept || "";
               return (
                 <Box>
                   <Typography noWrap sx={{ maxWidth: { xs: 120, sm: 160, md: '12vw' }, textOverflow: 'ellipsis', overflow: 'hidden' }} title={name}>{name}</Typography>
@@ -1017,8 +1033,8 @@ export default function AdminStudents(props) {
               );
             }
           },
-          { id: "department", label: "Department", minWidth: 150 },
-          { id: "year", label: "Year", minWidth: 80, render: (s) => s.year || "-" },
+          { id: "department", label: "Department", minWidth: 150, render: (s) => s.department?.name || s.department || "-" },
+          { id: "year", label: "Year", minWidth: 80, render: (s) => s.year?.name || s.year || "-" },
           {
             id: "status", label: "Status", minWidth: 150, render: (s) => (
               <StatusChip status={s.status} level={s.level} />
@@ -1164,7 +1180,7 @@ export default function AdminStudents(props) {
             </FormControl>
             <FormControl size="small" fullWidth>
               <InputLabel>Year</InputLabel>
-              <Select value={yearFilter} label="Year" onChange={(e) => setYearFilter(e.target.value)} disabled={!programFilter || programFilter === 'All'}>
+              <Select value={yearFilter} label="Year" onChange={(e) => setYearFilter(e.target.value)}>
                 <MenuItem value="All">All Years</MenuItem>
                 {yearOptions.length > 0 ? (
                   yearOptions.map(y => (
@@ -1302,7 +1318,7 @@ export default function AdminStudents(props) {
               onChange={handleAddChange}
               disabled={!newStudent.program}
             >
-              {(programsList.find(p => p.name === newStudent.program)?.eligibleYears || []).sort((a, b) => Number(a) - Number(b)).map(y => (
+              {[...(programsList.find(p => p.name === newStudent.program)?.eligibleYears || [])].sort((a, b) => Number(a) - Number(b)).map(y => (
                 <MenuItem key={y} value={String(y)}>{y}</MenuItem>
               ))}
             </Select>
@@ -1383,7 +1399,7 @@ export default function AdminStudents(props) {
                 <FormControl fullWidth>
                   <InputLabel>Year</InputLabel>
                   <Select label="Year" name="year" value={studentForm.year} onChange={handleFormChange} disabled={!studentForm.program}>
-                    {(programsList.find(p => p.name === studentForm.program)?.eligibleYears || []).sort((a, b) => Number(a) - Number(b)).map(y => (<MenuItem key={y} value={String(y)}>{y}</MenuItem>))}
+                    {[...(programsList.find(p => p.name === studentForm.program)?.eligibleYears || [])].sort((a, b) => Number(a) - Number(b)).map(y => (<MenuItem key={y} value={String(y)}>{y}</MenuItem>))}
                   </Select>
                 </FormControl>
                 <FormControl fullWidth>
@@ -1431,19 +1447,19 @@ export default function AdminStudents(props) {
                   <Box><Typography variant="subtitle2" color="textSecondary">Student ID</Typography><Typography variant="body1">{selectedStudent.studentId}</Typography></Box>
                   <Box><Typography variant="subtitle2" color="textSecondary">Email</Typography><Typography variant="body1">{selectedStudent.email}</Typography></Box>
                   <Box><Typography variant="subtitle2" color="textSecondary">Phone</Typography><Typography variant="body1">{selectedStudent.phone || "-"}</Typography></Box>
-                  <Box><Typography variant="subtitle2" color="textSecondary">Department</Typography><Typography variant="body1">{selectedStudent.department}</Typography></Box>
+                  <Box><Typography variant="subtitle2" color="textSecondary">Department</Typography><Typography variant="body1">{selectedStudent.department?.name || selectedStudent.department || "-"}</Typography></Box>
                   <Box>
                     <Typography variant="subtitle2" color="textSecondary">Guide</Typography>
                     <Typography variant="body1">{selectedStudent.appliedProject?.guide || selectedStudent.guide || "-"}</Typography>
                     {(selectedStudent.appliedProject?.guideDept || selectedStudent.guideDept) && (
-                      <Typography variant="caption" color="textSecondary">Dept: {selectedStudent.appliedProject?.guideDept || selectedStudent.guideDept}</Typography>
+                      <Typography variant="caption" color="textSecondary">Dept: {selectedStudent.appliedProject?.guideDept?.name || selectedStudent.appliedProject?.guideDept || selectedStudent.guideDept}</Typography>
                     )}
                   </Box>
                   <Box>
                     <Typography variant="subtitle2" color="textSecondary">Co-Guide</Typography>
                     <Typography variant="body1">{selectedStudent.appliedProject?.coGuide || selectedStudent.coGuide || "-"}</Typography>
                     {(selectedStudent.appliedProject?.coGuideDept || selectedStudent.coGuideDept) && (
-                      <Typography variant="caption" color="textSecondary">Dept: {selectedStudent.appliedProject?.coGuideDept || selectedStudent.coGuideDept}</Typography>
+                      <Typography variant="caption" color="textSecondary">Dept: {selectedStudent.appliedProject?.coGuideDept?.name || selectedStudent.appliedProject?.coGuideDept || selectedStudent.coGuideDept}</Typography>
                     )}
                   </Box>
                   <Box><Typography variant="subtitle2" color="textSecondary">Year</Typography><Typography variant="body1">{selectedStudent.year || "-"}</Typography></Box>

@@ -152,6 +152,19 @@ export default function ForgotPassword() {
       if (!isSilent) setError("Passwords do not match.");
       return;
     }
+
+    if (newPassword.length < 8) {
+      if (!isSilent) setError("Password must be at least 8 characters long.");
+      return;
+    }
+    if (!/[A-Z]/.test(newPassword)) {
+      if (!isSilent) setError("Password must contain at least one uppercase letter.");
+      return;
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      if (!isSilent) setError("Password must contain at least one number.");
+      return;
+    }
     if (!isSilent) setLoading(true);
     setError("");
     setMessage("");
@@ -233,7 +246,13 @@ export default function ForgotPassword() {
               variant="filled"
               className="modern-input"
               value={emailInput}
-              onChange={(e) => setEmailInput(e.target.value)}
+              onChange={(e) => {
+                let val = e.target.value;
+                if (val.includes('@')) {
+                  val = val.split('@')[0];
+                }
+                setEmailInput(val);
+              }}
               required
               InputProps={{
                 disableUnderline: true,

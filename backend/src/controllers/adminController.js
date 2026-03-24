@@ -22,6 +22,8 @@ const {
   incrementSeatIfRequired,
   syncFacultyProjectByEmpId
 } = require('../utils/projectUtils');
+const { invalidateAnalyticsCache } = require('./analyticsController');
+const { sanitizeUser, normalizeEmail, escapeRegex, checkEmailProhibited } = require('../utils/userUtils');
 
 function parsePagination(query = {}) {
   const limit = Number(query.limit);
@@ -32,9 +34,7 @@ function parsePagination(query = {}) {
   };
 }
 
-function escapeRegex(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+
 
 function normalizeStatus(value, fallback = USER_STATUS.PENDING) {
   const status = String(value || '').toLowerCase();
@@ -83,12 +83,7 @@ async function resolveProjectId(projectInput) {
   return byTitle ? byTitle._id : null;
 }
 
-function sanitizeUser(user) {
-  if (!user) return user;
-  const plain = user.toObject ? user.toObject() : { ...user };
-  delete plain.password;
-  return plain;
-}
+
 
 function resolveManagedPassword(rawPassword) {
   if (rawPassword !== undefined && rawPassword !== null && String(rawPassword).trim() !== '') {
@@ -511,8 +506,8 @@ const deleteDepartment = asyncHandler(async (req, res) => {
     throw new AppError(404, 'Department not found');
   }
 
-  // Check if used as baseDept in any project (string match)
-  const usedAsBaseDept = await Project.findOne({ baseDept: department.name }).lean();
+  // Check if used as baseDept in any project (ObjectId match)
+  const usedAsBaseDept = await Project.findOne({ baseDept: department._id }).lean();
   if (usedAsBaseDept) {
     throw new AppError(400, `Cannot delete: Department is set as base department for project "${usedAsBaseDept.title}"`);
   }
@@ -546,7 +541,10 @@ const getAllDbDepartments = asyncHandler(async (req, res) => {
 const getDepartmentProjectMatrix = asyncHandler(async (req, res) => {
   const { limit, skip } = parsePagination(req.query);
 
-  let query = Project.find().populate('departments.department').sort({ createdAt: -1 });
+  let query = Project.find()
+    .populate('departments.department')
+    .populate('baseDept guideDept coGuideDept', 'name')
+    .sort({ createdAt: -1 });
   if (limit) query = query.limit(limit);
   if (skip) query = query.skip(skip);
 
@@ -599,6 +597,9 @@ const getDepartmentProjectMatrix = asyncHandler(async (req, res) => {
 
     return {
       ...project,
+      baseDept: project.baseDept ? (project.baseDept.name || project.baseDept) : '',
+      guideDept: project.guideDept ? (project.guideDept.name || project.guideDept) : '',
+      coGuideDept: project.coGuideDept ? (project.coGuideDept.name || project.coGuideDept) : '',
       projectId: project.projectId || project._id,
       projectTitle: project.title,
       projectTotalSeats: departments.reduce((sum, entry) => sum + (entry.total || 0), 0),
@@ -656,6 +657,13 @@ const getStudents = asyncHandler(async (req, res) => {
       } else {
         filter.$and = [unassignedFilter];
       }
+    } else if (projectId === 'assigned') {
+      const assignedFilter = { $or: [{ appliedProject: { $ne: null } }, { projectApplications: { $not: { $size: 0 } } }] };
+      if (filter.$and) {
+        filter.$and.push(assignedFilter);
+      } else {
+        filter.$and = [assignedFilter];
+      }
     } else {
       const pIdFilter = { $or: [{ appliedProject: projectId }, { projectApplications: projectId }] };
       if (filter.$and) {
@@ -686,9 +694,26 @@ const getStudents = asyncHandler(async (req, res) => {
 
   const [students, total] = await Promise.all([
     User.find(filter)
-      .populate('appliedProject', 'title projectId description guide guideDept guideEmpId coGuide coGuideDept coGuideEmpId skillsRequired projectOutcome teamLeader status totalSeats registeredCount departments')
-      .populate('projectApplications', 'title projectId description guide guideDept guideEmpId coGuide coGuideDept coGuideEmpId skillsRequired projectOutcome teamLeader status totalSeats registeredCount departments')
-      .populate('applications.project', 'title projectId description guide guideDept guideEmpId coGuide coGuideDept coGuideEmpId skillsRequired projectOutcome teamLeader status totalSeats registeredCount departments')
+      .populate({
+        path: 'appliedProject',
+        select: 'title projectId baseDept description guide guideDept guideEmpId coGuide coGuideDept coGuideEmpId skillsRequired projectOutcome teamLeader status totalSeats registeredCount departments',
+        populate: [
+          { path: 'baseDept', select: 'name' },
+          { path: 'guideDept', select: 'name' },
+          { path: 'coGuideDept', select: 'name' },
+          { path: 'departments.department', select: 'name' }
+        ]
+      })
+      .populate({
+        path: 'projectApplications',
+        select: 'title projectId baseDept description guide guideDept guideEmpId coGuide coGuideDept coGuideEmpId skillsRequired projectOutcome teamLeader status totalSeats registeredCount departments',
+        populate: [
+          { path: 'baseDept', select: 'name' },
+          { path: 'guideDept', select: 'name' },
+          { path: 'coGuideDept', select: 'name' },
+          { path: 'departments.department', select: 'name' }
+        ]
+      })
       .select('name email phone studentId department program year status level appliedProject projectApplications applications createdAt')
       .sort({ createdAt: -1 })
       .skip(skipNum)
@@ -724,6 +749,7 @@ const createStudent = asyncHandler(async (req, res) => {
   if (!email) {
     throw new AppError(400, 'Email or student ID is required');
   }
+  checkEmailProhibited(email);
 
   const existing = await User.findOne({
     $or: [
@@ -753,6 +779,7 @@ const createStudent = asyncHandler(async (req, res) => {
     level: Number(payload.level) || 1
   });
 
+  invalidateAnalyticsCache();
   return successResponse(res, sanitizeUser(student), 'Student created', 201);
 });
 
@@ -794,7 +821,11 @@ const updateStudent = asyncHandler(async (req, res) => {
   }
 
   student.name = req.body.name ?? student.name;
-  student.email = req.body.email ? String(req.body.email).trim() : student.email;
+  if (req.body.email) {
+    const nextEmail = String(req.body.email).trim();
+    checkEmailProhibited(nextEmail);
+    student.email = nextEmail;
+  }
   student.phone = req.body.phone ?? student.phone;
   student.year = req.body.year ?? student.year;
   student.studentId = req.body.studentId ? String(req.body.studentId).toUpperCase() : student.studentId;
@@ -849,6 +880,7 @@ const updateStudent = asyncHandler(async (req, res) => {
 
   const populated = await User.findById(student._id).populate('appliedProject').lean();
 
+  invalidateAnalyticsCache();
   return successResponse(res, populated, 'Student updated');
 });
 
@@ -907,6 +939,7 @@ const approveStudent = asyncHandler(async (req, res) => {
     await student.save();
   }
 
+  invalidateAnalyticsCache();
   return successResponse(res, {}, 'Student approved/reassigned successfully');
 });
 
@@ -928,6 +961,7 @@ const rejectStudent = asyncHandler(async (req, res) => {
 
   await student.save();
 
+  invalidateAnalyticsCache();
   return successResponse(res, {}, 'Student rejected');
 });
 
@@ -955,11 +989,13 @@ const deleteStudent = asyncHandler(async (req, res) => {
   }
 
   await User.deleteOne({ _id: student._id });
+  invalidateAnalyticsCache();
   return successResponse(res, {}, 'Student deleted');
 });
 
 const deleteRejectedStudents = asyncHandler(async (req, res) => {
   await User.deleteMany({ role: ROLES.STUDENT, status: USER_STATUS.REJECTED });
+  invalidateAnalyticsCache();
   return successResponse(res, {}, 'Rejected students deleted');
 });
 
@@ -1019,6 +1055,7 @@ const moveStudentLevel = asyncHandler(async (req, res) => {
     }
   }
 
+  invalidateAnalyticsCache();
   return successResponse(res, { modifiedCount: result.modifiedCount }, 'Student levels updated');
 });
 
@@ -1041,8 +1078,10 @@ const bulkImportStudents = asyncHandler(async (req, res) => {
       if (email) {
         email = String(email).toLowerCase();
       } else if (formattedStudentId) {
-        email = `${formattedStudentId.toLowerCase()}${env.UNIVERSITY_EMAIL_DOMAIN}`;
+        email = `${formattedStudentId.toLowerCase()}${env.UNIVERSITY_EMAIL_DOMAIN.toLowerCase()}`;
       }
+
+      checkEmailProhibited(email);
 
       const name = getValue(row, ['name', 'Name', 'FullName', 'Full Name', 'Student Name']);
       if (!name || !email) {
@@ -1098,6 +1137,7 @@ const bulkImportStudents = asyncHandler(async (req, res) => {
     }
   }
 
+  invalidateAnalyticsCache();
   return successResponse(res, { created, total: students.length, errors }, 'Student import processed');
 });
 
@@ -1115,13 +1155,22 @@ const assignTeamLeader = asyncHandler(async (req, res) => {
   project.teamLeader = student._id;
   await project.save();
 
+  invalidateAnalyticsCache();
   return successResponse(res, { teamLeader: student._id }, 'Team leader assigned successfully');
 });
 
 // Faculty admin operations
 const getFaculty = asyncHandler(async (req, res) => {
   const faculty = await User.find({ role: ROLES.FACULTY })
-    .populate('appliedProject')
+    .populate({
+      path: 'appliedProject',
+      populate: [
+        { path: 'baseDept', select: 'name' },
+        { path: 'guideDept', select: 'name' },
+        { path: 'coGuideDept', select: 'name' },
+        { path: 'departments.department', select: 'name' }
+      ]
+    })
     .populate('requestedProject')
     .populate('coGuidedProject')
     .populate('requestedCoGuideProject')
@@ -1281,7 +1330,11 @@ const updateFaculty = asyncHandler(async (req, res) => {
   }
 
   faculty.name = name ?? faculty.name;
-  faculty.email = email ? String(email).trim() : faculty.email;
+  if (email) {
+    const nextEmail = String(email).trim();
+    checkEmailProhibited(nextEmail);
+    faculty.email = nextEmail;
+  }
   if (employeeId && !/^\d+$/.test(String(employeeId).trim())) {
     throw new AppError(400, 'Employee ID must contain only digits');
   }
@@ -1315,6 +1368,8 @@ const createFaculty = asyncHandler(async (req, res) => {
     email = `${email}${env.UNIVERSITY_EMAIL_DOMAIN.toLowerCase()}`;
   }
 
+  checkEmailProhibited(email);
+
   const existing = await User.findOne({ email: { $regex: new RegExp(`^${escapeRegex(email)}$`, 'i') } }).lean();
   if (existing) {
     throw new AppError(409, 'User with this email already exists');
@@ -1334,6 +1389,7 @@ const createFaculty = asyncHandler(async (req, res) => {
   await syncFacultyProjectByEmpId(faculty, 'faculty');
   await faculty.save();
 
+  invalidateAnalyticsCache();
   return successResponse(res, sanitizeUser(faculty), 'Faculty created successfully', 201);
 });
 
@@ -1364,6 +1420,8 @@ const createHOD = asyncHandler(async (req, res) => {
     email = `${email}${env.UNIVERSITY_EMAIL_DOMAIN.toLowerCase()}`;
   }
 
+  checkEmailProhibited(email);
+
   const existing = await User.findOne({ email: { $regex: new RegExp(`^${escapeRegex(email)}$`, 'i') } }).lean();
   if (existing) {
     throw new AppError(409, 'User with this email already exists');
@@ -1380,6 +1438,7 @@ const createHOD = asyncHandler(async (req, res) => {
     status: USER_STATUS.APPROVED
   });
 
+  invalidateAnalyticsCache();
   return successResponse(res, sanitizeUser(hod), 'HOD created successfully', 201);
 });
 
@@ -1409,6 +1468,11 @@ const updateHOD = asyncHandler(async (req, res) => {
   }
 
   hod.name = name ?? hod.name;
+  if (req.body.email) {
+    const nextEmail = String(req.body.email).trim();
+    checkEmailProhibited(nextEmail);
+    hod.email = nextEmail;
+  }
   hod.department = department ?? hod.department;
   hod.program = program ?? hod.program;
   hod.phone = phone ?? hod.phone;

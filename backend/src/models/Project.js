@@ -16,16 +16,16 @@ const projectSchema = new mongoose.Schema(
       trim: true
     },
     baseDept: {
-      type: String,
-      trim: true
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Department'
     },
     description: { type: String, trim: true },
     guide: { type: String, trim: true },
     guideEmpId: { type: String, trim: true },
-    guideDept: { type: String, trim: true },
+    guideDept: { type: mongoose.Schema.Types.ObjectId, ref: 'Department' },
     coGuide: { type: String, trim: true },
     coGuideEmpId: { type: String, trim: true },
-    coGuideDept: { type: String, trim: true },
+    coGuideDept: { type: mongoose.Schema.Types.ObjectId, ref: 'Department' },
     skillsRequired: { type: String, trim: true },
     projectOutcome: { type: String, trim: true },
     teamLeader: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -95,7 +95,16 @@ projectSchema.statics.generateProjectId = async function (baseDept) {
 
   // 2. Base Dept first two letters in capital
   // e.g., "Computer Science" -> "CO", "CSE" -> "CS"
-  const deptCode = baseDept.toUpperCase().replace(/[^A-Z]/g, '').substring(0, 2);
+  let baseDeptName = baseDept;
+  if (mongoose.Types.ObjectId.isValid(baseDept)) {
+    const Department = mongoose.model('Department');
+    const dept = await Department.findById(baseDept).lean();
+    if (dept && dept.name) {
+      baseDeptName = dept.name;
+    }
+  }
+
+  const deptCode = baseDeptName.toUpperCase().replace(/[^A-Z]/g, '').substring(0, 2);
 
   const prefix = `${yearStr}${deptCode}`; // "26CS"
   const prefixRegex = new RegExp(`^${prefix}(\\d+)$`);

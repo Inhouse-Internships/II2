@@ -7,6 +7,7 @@ const xlsx = require('xlsx');
 const Setting = require('../models/Setting');
 const WeeklySubmission = require('../models/WeeklySubmission');
 const { SETTING_KEYS } = require('../utils/constants');
+const { invalidateAnalyticsCache } = require('./analyticsController');
 
 /**
  * @desc    Set universal internship dates
@@ -19,6 +20,7 @@ const setInternshipDates = asyncHandler(async (req, res) => {
     }
     // Update all tasks
     await Task.updateMany({}, { $set: { startDate, deadline: endDate } });
+    invalidateAnalyticsCache();
     res.json({ message: 'Internship dates updated for all tasks' });
 });
 
@@ -29,6 +31,7 @@ const setInternshipDates = asyncHandler(async (req, res) => {
 const toggleGlobalHODTaskEdit = asyncHandler(async (req, res) => {
     const { enabled } = req.body;
     await Task.updateMany({}, { $set: { editableByHOD: enabled } });
+    invalidateAnalyticsCache();
     res.json({ message: `HOD task editing ${enabled ? 'enabled' : 'disabled'} globally` });
 });
 
@@ -53,6 +56,7 @@ const createTask = asyncHandler(async (req, res) => {
         editableByHOD,
         order: startOrder + 1
     });
+    invalidateAnalyticsCache();
     res.status(201).json(task);
 });
 
@@ -95,6 +99,7 @@ const bulkImportTasks = asyncHandler(async (req, res) => {
     }));
 
     await Task.insertMany(formattedTasks);
+    invalidateAnalyticsCache();
     res.json({ message: `${tasksToParse.length} tasks imported successfully` });
 });
 
@@ -177,6 +182,7 @@ const editTask = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const task = await Task.findByIdAndUpdate(id, req.body, { new: true });
     if (!task) return res.status(404).json({ message: 'Task not found' });
+    invalidateAnalyticsCache();
     res.json(task);
 });
 
@@ -192,6 +198,7 @@ const deleteTask = asyncHandler(async (req, res) => {
     }
     const task = await Task.findByIdAndDelete(id);
     if (!task) return res.status(404).json({ message: 'Task not found' });
+    invalidateAnalyticsCache();
     res.json({ message: 'Task deleted successfully' });
 });
 
@@ -211,6 +218,7 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
     }
 
     await Task.deleteMany({ _id: { $in: taskIds } });
+    invalidateAnalyticsCache();
     res.json({ message: `${taskIds.length} tasks deleted successfully` });
 });
 
@@ -396,7 +404,7 @@ const submitTask = asyncHandler(async (req, res) => {
         },
         { upsert: true, new: true }
     );
-
+    invalidateAnalyticsCache();
     res.json({ message: 'Task status updated', submission });
 });
 
@@ -429,7 +437,7 @@ const submitWeeklyTask = asyncHandler(async (req, res) => {
         },
         { upsert: true, new: true }
     );
-
+    invalidateAnalyticsCache();
     res.json({ message: 'Weekly report submitted', submission });
 });
 
@@ -467,6 +475,7 @@ const reviewWeeklySubmission = asyncHandler(async (req, res) => {
     if (remarks !== undefined) submission.remarks = remarks;
 
     await submission.save();
+    invalidateAnalyticsCache();
     res.json({ message: 'Weekly report reviewed', submission });
 });
 
@@ -486,6 +495,7 @@ const reviewSubmission = asyncHandler(async (req, res) => {
     if (facultyAdjustedPercentage !== undefined) submission.facultyAdjustedPercentage = facultyAdjustedPercentage;
 
     await submission.save();
+    invalidateAnalyticsCache();
     res.json({ message: 'Review updated', submission });
 });
 
@@ -544,6 +554,7 @@ const reviewSubmissionById = asyncHandler(async (req, res) => {
     if (facultyAdjustedPercentage !== undefined) submission.facultyAdjustedPercentage = facultyAdjustedPercentage;
 
     await submission.save();
+    invalidateAnalyticsCache();
     res.json({ message: 'Review updated', submission });
 });
 
@@ -555,6 +566,7 @@ const updateProjectTaskVisibility = asyncHandler(async (req, res) => {
     const { projectId } = req.params;
     const { editableByHOD } = req.body;
     await Task.updateMany({ project: projectId }, { $set: { editableByHOD } });
+    invalidateAnalyticsCache();
     res.json({ message: 'Task visibility updated' });
 });
 
@@ -566,6 +578,7 @@ const updateTaskDeadline = asyncHandler(async (req, res) => {
     const { taskId } = req.params;
     const { deadline } = req.body;
     await Task.findByIdAndUpdate(taskId, { deadline });
+    invalidateAnalyticsCache();
     res.json({ message: 'Deadline updated' });
 });
 

@@ -4,10 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/ensure-port-5173.js && vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "node scripts/ensure-port-5173.js && vite preview"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

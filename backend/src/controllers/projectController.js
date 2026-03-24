@@ -12,6 +12,7 @@ const TaskSubmission = require('../models/TaskSubmission');
 const Attendance = require('../models/Attendance');
 const DailyStatus = require('../models/DailyStatus');
 const Review = require('../models/Review');
+const { invalidateAnalyticsCache } = require('./analyticsController');
 
 function parsePagination(query = {}) {
   const limit = Number(query.limit);
@@ -120,31 +121,39 @@ const getAllProjects = asyncHandler(async (req, res) => {
   const pagination = parsePagination({ limit, skip });
 
   let filter = {};
+
+  const resolveDept = async (deptName) => {
+    if (!deptName) return null;
+    if (deptName.match(/^[0-9a-fA-F]{24}$/)) return deptName; // Already ObjectId
+    const d = await Department.findOne({ name: deptName }).lean();
+    return d ? d._id : deptName;
+  };
+
   if (req.user && req.user.role === ROLES.FACULTY) {
-    const dept = req.user.department;
+    const deptId = await resolveDept(req.user.department);
     filter.$or = [
-      { baseDept: dept },
-      { guideDept: dept },
-      { coGuideDept: dept }
+      { baseDept: deptId },
+      { guideDept: deptId },
+      { coGuideDept: deptId }
     ];
   } else if (req.user && req.user.role === ROLES.HOD) {
-    const dept = req.user.department;
+    const deptId = await resolveDept(req.user.department);
     filter.$or = [
-      { baseDept: dept },
-      { coGuideDept: dept }
+      { baseDept: deptId },
+      { coGuideDept: deptId }
     ];
   } else {
     if (baseDept) {
-      if (baseDept === 'Assigned') filter.baseDept = { $ne: '', $exists: true };
-      else if (baseDept !== 'All') filter.baseDept = baseDept;
+      if (baseDept === 'Assigned') filter.baseDept = { $ne: null, $exists: true };
+      else if (baseDept !== 'All') filter.baseDept = await resolveDept(baseDept);
     }
     if (guideDept) {
       if (guideDept === 'Assigned') filter.guide = { $ne: '', $exists: true };
-      else if (guideDept !== 'All') filter.guideDept = guideDept;
+      else if (guideDept !== 'All') filter.guideDept = await resolveDept(guideDept);
     }
     if (coGuideDept) {
       if (coGuideDept === 'Assigned') filter.coGuide = { $ne: '', $exists: true };
-      else if (coGuideDept !== 'All') filter.coGuideDept = coGuideDept;
+      else if (coGuideDept !== 'All') filter.coGuideDept = await resolveDept(coGuideDept);
     }
   }
 
@@ -183,8 +192,7 @@ const getAllProjects = asyncHandler(async (req, res) => {
         { coGuideEmpId: regex },
         { description: regex },
         { skillsRequired: regex },
-        { projectOutcome: regex },
-        { baseDept: regex }
+        { projectOutcome: regex }
       ]
     };
 
@@ -197,6 +205,7 @@ const getAllProjects = asyncHandler(async (req, res) => {
 
   let query = Project.find(filter)
     .populate('departments.department', 'name')
+    .populate('baseDept guideDept coGuideDept', 'name')
     .select('title projectId baseDept description status guide guideDept guideEmpId coGuide coGuideDept coGuideEmpId skillsRequired projectOutcome teamLeader departments registeredCount totalSeats hasLevel2Student hasLevel1Student createdAt')
     .sort({ status: -1, createdAt: -1 });
   if (pagination.limit) query = query.limit(pagination.limit);
@@ -233,13 +242,14 @@ const getAllProjects = asyncHandler(async (req, res) => {
 
     return {
       ...project,
+      baseDept: project.baseDept ? (project.baseDept.name || project.baseDept) : '',
       guide: guide ? guide.name : (project.guide || ''),
       guidePhone: guide ? guide.phone : '',
-      guideDept: (guide && guide.department) ? guide.department : (project.guideDept || ''),
+      guideDept: (guide && guide.department) ? guide.department : (project.guideDept ? (project.guideDept.name || project.guideDept) : ''),
       guideEmpId: guide ? guide.employeeId : (project.guideEmpId || ''),
       coGuide: coGuide ? coGuide.name : (project.coGuide || ''),
       coGuidePhone: coGuide ? coGuide.phone : '',
-      coGuideDept: (coGuide && coGuide.department) ? coGuide.department : (project.coGuideDept || ''),
+      coGuideDept: (coGuide && coGuide.department) ? coGuide.department : (project.coGuideDept ? (project.coGuideDept.name || project.coGuideDept) : ''),
       coGuideEmpId: coGuide ? coGuide.employeeId : (project.coGuideEmpId || ''),
       students: projectStudents,
       departments,
@@ -263,7 +273,10 @@ const getAllProjects = asyncHandler(async (req, res) => {
 });
 
 const getProjectById = asyncHandler(async (req, res) => {
-  const project = await Project.findById(req.params.id).populate('departments.department').lean();
+  const project = await Project.findById(req.params.id)
+    .populate('departments.department', 'name')
+    .populate('baseDept guideDept coGuideDept', 'name')
+    .lean();
   if (!project) throw new AppError(404, 'Project not found');
 
   const {
@@ -328,6 +341,19 @@ const createProject = asyncHandler(async (req, res) => {
     }
   }
 
+  const Department = require('../models/Department');
+  const resolveDeptName = async (name) => {
+    if (!name) return null;
+    if (name.match(/^[0-9a-fA-F]{24}$/)) return name;
+    let d = await Department.findOne({ name });
+    if (!d) d = await Department.create({ name });
+    return d._id;
+  };
+
+  const resolvedBaseDeptId = await resolveDeptName(baseDept);
+  if (otherFields.guideDept) otherFields.guideDept = await resolveDeptName(otherFields.guideDept);
+  if (otherFields.coGuideDept) otherFields.coGuideDept = await resolveDeptName(otherFields.coGuideDept);
+
   if (Array.isArray(otherFields.departments)) {
     const Department = require('../models/Department');
     const mappedDepartments = [];
@@ -348,7 +374,7 @@ const createProject = asyncHandler(async (req, res) => {
     otherFields.departments = mappedDepartments;
   }
 
-  const project = await Project.create({ title, baseDept, projectId: newProjectId, ...otherFields });
+  const project = await Project.create({ title, baseDept: resolvedBaseDeptId, projectId: newProjectId, ...otherFields });
   return successResponse(res, project, 'Project created', 201);
 });
 
@@ -364,6 +390,19 @@ const updateProject = asyncHandler(async (req, res) => {
   }
 
   const oldProject = await Project.findById(req.params.id).lean();
+
+  const Department = require('../models/Department');
+  const resolveDeptName = async (name) => {
+    if (!name) return null;
+    if (name.match(/^[0-9a-fA-F]{24}$/)) return name;
+    let d = await Department.findOne({ name });
+    if (!d) d = await Department.create({ name });
+    return d._id;
+  };
+
+  if (req.body.baseDept) req.body.baseDept = await resolveDeptName(req.body.baseDept);
+  if (req.body.guideDept) req.body.guideDept = await resolveDeptName(req.body.guideDept);
+  if (req.body.coGuideDept) req.body.coGuideDept = await resolveDeptName(req.body.coGuideDept);
 
   if (Array.isArray(req.body.departments)) {
     const Department = require('../models/Department');
@@ -388,29 +427,6 @@ const updateProject = asyncHandler(async (req, res) => {
   const project = await Project.findByIdAndUpdate(req.params.id, req.body, { new: true });
   if (!project) {
     throw new AppError(404, 'Project not found');
-  }
-
-  if (oldProject && oldProject.baseDept && req.body.baseDept && oldProject.baseDept !== req.body.baseDept) {
-    const Department = require('../models/Department');
-    const Program = require('../models/Program');
-
-    const oldDeptDoc = await Department.findOne({ name: oldProject.baseDept });
-    if (oldDeptDoc) {
-      const isUsed = await Project.exists({
-        $or: [
-          { baseDept: oldDeptDoc.name },
-          { 'departments.department': oldDeptDoc._id }
-        ]
-      });
-
-      if (!isUsed) {
-        await Program.updateMany(
-          { departments: oldDeptDoc._id },
-          { $pull: { departments: oldDeptDoc._id } }
-        );
-        await Department.findByIdAndDelete(oldDeptDoc._id);
-      }
-    }
   }
 
   return successResponse(res, project, 'Project updated');
@@ -462,7 +478,7 @@ const deleteProjectDepartment = asyncHandler(async (req, res) => {
     if (deptDoc) {
       const isUsed = await Project.exists({
         $or: [
-          { baseDept: deptDoc.name },
+          { baseDept: deptDoc._id },
           { 'departments.department': deptDoc._id }
         ]
       });
@@ -555,28 +571,7 @@ const deleteProject = asyncHandler(async (req, res) => {
 
   // 4. DELETE THE PROJECT
   await Project.findByIdAndDelete(projectId);
-
-  // 5. CLEANUP ORPHANED DEPARTMENTS
-  for (const deptIdStr of deptsToCheck) {
-    const deptDoc = await Department.findById(deptIdStr);
-    if (!deptDoc) continue;
-
-    const isUsed = await Project.exists({
-      $or: [
-        { baseDept: deptDoc.name },
-        { 'departments.department': deptDoc._id }
-      ]
-    });
-
-    if (!isUsed) {
-      await Program.updateMany(
-        { departments: deptDoc._id },
-        { $pull: { departments: deptDoc._id } }
-      );
-      await Department.findByIdAndDelete(deptDoc._id);
-    }
-  }
-
+  invalidateAnalyticsCache();
   return successResponse(res, {}, 'Project deleted and all associated data/assignments cleaned up');
 });
 

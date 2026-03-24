@@ -142,7 +142,13 @@ export default function Login() {
             className="modern-input"
             variant="filled"
             value={emailInput}
-            onChange={(e) => setEmailInput(e.target.value)}
+            onChange={(e) => {
+              let val = e.target.value;
+              if (val.includes('@')) {
+                val = val.split('@')[0];
+              }
+              setEmailInput(val);
+            }}
             required
             InputProps={{
               disableUnderline: true,

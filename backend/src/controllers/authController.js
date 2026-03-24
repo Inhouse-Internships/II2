@@ -10,7 +10,7 @@ const { signToken } = require('../utils/jwt');
 const { ROLES, USER_STATUS, SETTING_KEYS } = require('../utils/constants');
 const { issueOtp, verifyOtp: verifyStoredOtp, consumeOtp } = require('../services/otpService');
 const { syncFacultyProjectByEmpId } = require('../utils/projectUtils');
-const { sanitizeUser, normalizeEmail } = require('../utils/userUtils');
+const { sanitizeUser, normalizeEmail, escapeRegex, checkEmailProhibited } = require('../utils/userUtils');
 const { auditLogin } = require('../utils/logger');
 const { getOtpEmailTemplate } = require('../utils/emailTemplates');
 
@@ -55,23 +55,25 @@ async function sendOtpEmail(email, otp, purpose) {
 const sendOtp = asyncHandler(async (req, res) => {
   const email = normalizeEmail(req.body.email);
   if (!email) throw new AppError(400, 'Email is required');
+  checkEmailProhibited(email);
 
-  const otp = issueOtp({
+  const otp = await issueOtp({
     email,
     purpose: OTP_PURPOSE.REGISTRATION,
     ttlMinutes: env.OTP_TTL_MINUTES
   });
 
+  const purpose = OTP_PURPOSE.REGISTRATION;
+  if (!env.IS_PRODUCTION) {
+    // eslint-disable-next-line no-console
+    console.log(`[DEV] OTP for ${email}: ${otp} (${purpose})`);
+  }
+
   try {
-    await sendOtpEmail(email, otp, OTP_PURPOSE.REGISTRATION);
+    await sendOtpEmail(email, otp, purpose);
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('SMTP Error:', error.message);
-    // In dev, log OTP to console so dev can still test without SMTP
-    if (!env.IS_PRODUCTION) {
-      // eslint-disable-next-line no-console
-      console.log(`[DEV] OTP for ${email}: ${otp}`);
-    }
   }
 
   return successResponse(res, {}, 'OTP sent successfully');
@@ -83,7 +85,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
 
   if (!email || !otp) throw new AppError(400, 'Email and OTP are required');
 
-  const result = verifyStoredOtp({ email, otp, purpose: OTP_PURPOSE.REGISTRATION });
+  const result = await verifyStoredOtp({ email, otp, purpose: OTP_PURPOSE.REGISTRATION });
 
   if (!result.valid) throw new AppError(400, result.reason);
 
@@ -94,6 +96,7 @@ const register = asyncHandler(async (req, res) => {
   const { name, email: rawEmail, password, otp, ...rest } = req.body;
   const role = String(req.body.role || ROLES.STUDENT).trim().toLowerCase();
   const email = normalizeEmail(rawEmail);
+  checkEmailProhibited(email);
 
   if (!name || !email || !password) {
     throw new AppError(400, 'Name, email and password are required');
@@ -131,8 +134,8 @@ const register = asyncHandler(async (req, res) => {
     }
   }
 
-  // FIX S-8: Direct indexed equality lookup (email stored lowercase via pre-save hook)
-  const existingUser = await User.findOne({ email }).lean();
+  // FIX S-8: Case-insensitive indexed equality lookup
+  const existingUser = await User.findOne({ email: { $regex: new RegExp(`^${escapeRegex(email)}$`, 'i') } }).lean();
   if (existingUser) throw new AppError(409, 'User already exists with this email');
 
   if (rest.studentId) {
@@ -148,7 +151,7 @@ const register = asyncHandler(async (req, res) => {
 
   if (env.REQUIRE_REGISTRATION_OTP) {
     if (!otp) throw new AppError(400, 'OTP is required for registration');
-    const otpValidation = consumeOtp({ email, otp, purpose: OTP_PURPOSE.REGISTRATION, requireVerified: true });
+    const otpValidation = await consumeOtp({ email, otp, purpose: OTP_PURPOSE.REGISTRATION, requireVerified: true });
     if (!otpValidation.valid) throw new AppError(400, otpValidation.reason);
   }
 
@@ -175,14 +178,17 @@ const register = asyncHandler(async (req, res) => {
 
 const login = asyncHandler(async (req, res) => {
   const email = normalizeEmail(req.body.email);
+  checkEmailProhibited(email);
   const password = req.body.password;
 
   if (!email || !password) {
     throw new AppError(400, 'Email and password are required');
   }
 
-  // FIX S-8: Direct indexed equality lookup (fast — hits unique index)
-  let user = await User.findOne({ email }).select('+password');
+  // Case-insensitive indexed lookup
+  let user = await User.findOne({
+    email: { $regex: new RegExp(`^${escapeRegex(email)}$`, 'i') }
+  }).select('+password');
 
   // Fallback: try student ID or employee ID
   if (!user) {
@@ -230,22 +236,27 @@ const login = asyncHandler(async (req, res) => {
 const forgotPassword = asyncHandler(async (req, res) => {
   const email = normalizeEmail(req.body.email);
   if (!email) throw new AppError(400, 'Email is required');
+  checkEmailProhibited(email);
 
-  // FIX S-8: Direct indexed equality lookup
-  const user = await User.findOne({ email }).lean();
+  // Case-insensitive lookup
+  const user = await User.findOne({
+    email: { $regex: new RegExp(`^${escapeRegex(email)}$`, 'i') }
+  }).lean();
   if (!user) throw new AppError(404, 'No account found for this email');
 
-  const otp = issueOtp({ email, purpose: OTP_PURPOSE.PASSWORD_RESET, ttlMinutes: env.OTP_TTL_MINUTES });
+  const otp = await issueOtp({ email, purpose: OTP_PURPOSE.PASSWORD_RESET, ttlMinutes: env.OTP_TTL_MINUTES });
+
+  const purpose = OTP_PURPOSE.PASSWORD_RESET;
+  if (!env.IS_PRODUCTION) {
+    // eslint-disable-next-line no-console
+    console.log(`[DEV] OTP for ${email}: ${otp} (${purpose})`);
+  }
 
   try {
-    await sendOtpEmail(email, otp, OTP_PURPOSE.PASSWORD_RESET);
+    await sendOtpEmail(email, otp, purpose);
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('SMTP Error:', error.message);
-    if (!env.IS_PRODUCTION) {
-      // eslint-disable-next-line no-console
-      console.log(`[DEV] Password reset OTP for ${email}: ${otp}`);
-    }
   }
 
   return successResponse(res, {}, 'Password reset OTP sent successfully');
@@ -253,6 +264,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
 const resetPassword = asyncHandler(async (req, res) => {
   const email = normalizeEmail(req.body.email);
+  checkEmailProhibited(email);
   const otp = String(req.body.otp || '').trim();
   const newPassword = req.body.newPassword;
 
@@ -263,11 +275,13 @@ const resetPassword = asyncHandler(async (req, res) => {
   const passwordError = validatePasswordStrength(newPassword);
   if (passwordError) throw new AppError(400, passwordError);
 
-  const otpValidation = consumeOtp({ email, otp, purpose: OTP_PURPOSE.PASSWORD_RESET });
+  const otpValidation = await consumeOtp({ email, otp, purpose: OTP_PURPOSE.PASSWORD_RESET });
   if (!otpValidation.valid) throw new AppError(400, otpValidation.reason);
 
-  // FIX S-8: Direct indexed equality lookup
-  const user = await User.findOne({ email }).select('+password');
+  // Case-insensitive lookup
+  const user = await User.findOne({
+    email: { $regex: new RegExp(`^${escapeRegex(email)}$`, 'i') }
+  }).select('+password');
   if (!user) throw new AppError(404, 'User not found');
 
   user.password = await hashPassword(newPassword);

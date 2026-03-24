@@ -1,5 +1,6 @@
 ﻿const User = require('../models/User');
 const Project = require('../models/Project');
+const Department = require('../models/Department');
 const Setting = require('../models/Setting');
 
 const asyncHandler = require('../utils/asyncHandler');
@@ -14,6 +15,7 @@ const {
   FACULTY_ASSIGNMENT_ROLE,
   INTERVIEW_STATUS
 } = require('../utils/constants');
+const { invalidateAnalyticsCache } = require('./analyticsController');
 
 function ensureFacultyAccess(req, facultyId) {
   if (String(req.user._id) !== String(facultyId)) {
@@ -42,15 +44,29 @@ const getDashboard = asyncHandler(async (req, res) => {
     throw new AppError(404, 'Faculty not found');
   }
 
+  const deptDoc = await Department.findOne({ name: faculty.department });
+  const deptId = deptDoc ? deptDoc._id : null;
+
   const projects = await Project.find({
     status: PROJECT_STATUS.OPEN,
-    $or: [
-      { baseDept: faculty.department },
-      { guideDept: faculty.department },
-      { coGuideDept: faculty.department }
-    ]
-  }).lean();
-  return successResponse(res, { faculty, projects });
+    $or: deptId ? [
+      { baseDept: deptId },
+      { guideDept: deptId },
+      { coGuideDept: deptId }
+    ] : []
+  })
+    .populate('departments.department')
+    .populate('baseDept guideDept coGuideDept', 'name')
+    .lean();
+
+  const mappedProjects = projects.map(p => ({
+    ...p,
+    baseDept: p.baseDept ? (p.baseDept.name || p.baseDept) : '',
+    guideDept: p.guideDept ? (p.guideDept.name || p.guideDept) : '',
+    coGuideDept: p.coGuideDept ? (p.coGuideDept.name || p.coGuideDept) : ''
+  }));
+
+  return successResponse(res, { faculty, projects: mappedProjects });
 });
 
 const applyForProject = asyncHandler(async (req, res) => {
@@ -82,12 +98,18 @@ const applyForProject = asyncHandler(async (req, res) => {
     throw new AppError(400, 'You are already assigned as co-guide for this project');
   }
 
-  if (role === FACULTY_ASSIGNMENT_ROLE.GUIDE && project.guideDept && faculty.department !== project.guideDept) {
-    throw new AppError(400, `Only faculties from ${project.guideDept} department can apply as guide for this project`);
+  if (role === FACULTY_ASSIGNMENT_ROLE.GUIDE && project.guideDept) {
+    const gdReq = await Department.findById(project.guideDept);
+    if (gdReq && faculty.department !== gdReq.name) {
+      throw new AppError(400, `Only faculties from ${gdReq.name} department can apply as guide for this project`);
+    }
   }
 
-  if (role === FACULTY_ASSIGNMENT_ROLE.CO_GUIDE && project.coGuideDept && faculty.department !== project.coGuideDept) {
-    throw new AppError(400, `Only faculties from ${project.coGuideDept} department can apply as co-guide for this project`);
+  if (role === FACULTY_ASSIGNMENT_ROLE.CO_GUIDE && project.coGuideDept) {
+    const cgdReq = await Department.findById(project.coGuideDept);
+    if (cgdReq && faculty.department !== cgdReq.name) {
+      throw new AppError(400, `Only faculties from ${cgdReq.name} department can apply as co-guide for this project`);
+    }
   }
 
   const autoApproveSetting = await Setting.findOne({ key: SETTING_KEYS.AUTO_APPROVE_FACULTY }).lean();
@@ -125,6 +147,7 @@ const applyForProject = asyncHandler(async (req, res) => {
     }
 
     await Promise.all([project.save(), faculty.save()]);
+    invalidateAnalyticsCache();
     return successResponse(res, {}, 'Application auto-approved');
   }
 
@@ -178,6 +201,7 @@ const withdrawApplication = asyncHandler(async (req, res) => {
   }
 
   await faculty.save();
+  invalidateAnalyticsCache();
   return successResponse(res, {}, 'Application withdrawn successfully');
 });
 
@@ -294,7 +318,7 @@ const approveStudent = asyncHandler(async (req, res) => {
   }
 
   await student.save();
-
+  invalidateAnalyticsCache();
   return successResponse(res, {}, 'Student approved successfully');
 });
 
@@ -337,7 +361,7 @@ const rejectStudent = asyncHandler(async (req, res) => {
   }
 
   await student.save();
-
+  invalidateAnalyticsCache();
   return successResponse(res, {}, 'Student rejected successfully');
 });
 
@@ -375,6 +399,7 @@ const updateInterviewStatus = asyncHandler(async (req, res) => {
   }
 
   await student.save();
+  invalidateAnalyticsCache();
   return successResponse(res, {}, 'Interview result updated successfully');
 });
 

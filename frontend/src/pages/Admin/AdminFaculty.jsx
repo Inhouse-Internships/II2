@@ -47,7 +47,7 @@ import ConfirmDialog from "../../components/common/ConfirmDialog";
 import EmailSuffixToggle from "../../components/common/EmailSuffixToggle";
 import ProjectDetailsDialog from "../../components/common/ProjectDetailsDialog";
 
-export default function AdminFaculty() {
+export default function AdminFaculty(props) {
   const navigate = useNavigate();
   const [faculty, setFaculty] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -263,7 +263,11 @@ export default function AdminFaculty() {
 
   const handleSendMail = () => {
     const selectedFaculty = faculty.filter(f => selectedIds.includes(f._id));
-    navigate('/admin/mail', { state: { recipients: selectedFaculty } });
+    if (props.context?.setSection) {
+      props.context.setSection('mail', { recipients: selectedFaculty });
+    } else {
+      navigate('/admin/mail', { state: { recipients: selectedFaculty } });
+    }
   };
 
   const confirmBulkDelete = async () => {

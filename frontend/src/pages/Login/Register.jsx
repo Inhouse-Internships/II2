@@ -156,7 +156,10 @@ export default function Register() {
   const handleChange = (e) => {
     let value = e.target.value;
     if (e.target.name === 'emailInput') {
-      // Removed forced upper-casing
+      // Prevent entering @ or any domain, as it's already mentioned in the suffix toggle
+      if (value.includes('@')) {
+        value = value.split('@')[0];
+      }
     }
     const updatedForm = { ...formData, [e.target.name]: value };
     // Reset dependant fields if program changes
@@ -246,6 +249,19 @@ export default function Register() {
     }
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters long.");
+      return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      setError("Password must contain at least one uppercase letter.");
+      return;
+    }
+    if (!/[0-9]/.test(password)) {
+      setError("Password must contain at least one number.");
       return;
     }
 

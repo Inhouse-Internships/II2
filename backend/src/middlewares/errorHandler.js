@@ -54,20 +54,20 @@ function normalizeError(error) {
 function errorHandler(err, req, res, next) {
   const normalized = normalizeError(err);
 
-  // Only log server-side errors (5xx) in detail
-  if (normalized.statusCode >= 500) {
-    console.error(`ERROR [${req.method} ${req.url}]:`, err.message);
-    console.error(err.stack);
-  }
-  const debugError = env.IS_PRODUCTION ? {} : { stack: err.stack };
+  // Log ALL errors to the console temporarily
+  console.error(`ERROR [${req.method} ${req.url}] Status: ${normalized.statusCode}:`, err.message);
+  if (err.stack) console.error(err.stack);
 
-  return errorResponse(
-    res,
-    debugError,
-    normalized.message,
-    normalized.statusCode,
-    normalized.details
-  );
+  // Still follow production rules for the response body if you want, 
+  // but let's at least show the message and details.
+  const debugError = { stack: err.stack }; // Temporarily show stack in response too
+
+  return res.status(normalized.statusCode).json({
+    success: false,
+    message: normalized.message,
+    details: normalized.details,
+    error: debugError
+  });
 }
 
 module.exports = errorHandler;

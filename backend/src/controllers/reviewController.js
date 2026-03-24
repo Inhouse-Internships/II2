@@ -1,5 +1,6 @@
 const Review = require('../models/Review');
 const Project = require('../models/Project');
+const Department = require('../models/Department');
 const User = require('../models/User');
 const { checkProjectAuthorization } = require('../utils/projectUtils');
 
@@ -192,9 +193,12 @@ exports.getAdminReviewStats = async (req, res) => {
         };
 
         // 2. Department-wise Stats
-        const depts = await Project.distinct('baseDept');
-        const deptStats = await Promise.all(depts.map(async (dept) => {
-            const deptProjectsQuery = { baseDept: dept };
+        const rawDepts = await Project.distinct('baseDept');
+        // Map ObjectIds to Department documents
+        const mappedDepts = await Department.find({ _id: { $in: rawDepts } }).lean();
+
+        const deptStats = await Promise.all(mappedDepts.map(async (deptDoc) => {
+            const deptProjectsQuery = { baseDept: deptDoc._id };
             if (projectId) deptProjectsQuery._id = projectId;
 
             const deptProjects = await Project.find(deptProjectsQuery).select('_id').lean();
@@ -207,7 +211,7 @@ exports.getAdminReviewStats = async (req, res) => {
             const r3Completed = await Review.countDocuments({ project: { $in: deptProjectIds }, title: 'Review 3', status: 'COMPLETED' });
 
             return {
-                department: dept,
+                department: deptDoc.name,
                 review1: { completed: r1Completed, total: deptProjects.length },
                 review2: { completed: r2Completed, total: deptProjects.length },
                 review3: { completed: r3Completed, total: deptProjects.length },
