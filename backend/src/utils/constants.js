@@ -48,7 +48,8 @@ const SETTING_KEYS = Object.freeze({
   CAMPUS_ACCURACY_THRESHOLD: 'campusAccuracyThreshold', // max allowed GPS accuracy in meters
   ATTENDANCE_WINDOW_START: 'attendanceWindowStart', // e.g. "09:00"
   ATTENDANCE_WINDOW_END: 'attendanceWindowEnd',       // e.g. "10:30"
-  ATTENDANCE_TIME_CHECK_DISABLED: 'attendanceTimeCheckDisabled' // boolean, bypass time window for testing
+  ATTENDANCE_TIME_CHECK_DISABLED: 'attendanceTimeCheckDisabled', // boolean, bypass time window for testing
+  STUDENT_FREEZE: 'studentFreeze'
 });
 
 const FACULTY_ASSIGNMENT_ROLE = Object.freeze({

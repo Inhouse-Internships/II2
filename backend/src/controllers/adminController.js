@@ -168,7 +168,7 @@ const setAutoApproveFacultySetting = asyncHandler(async (req, res) => {
 });
 
 const getInternshipSettings = asyncHandler(async (req, res) => {
-  const [startDateSetting, endDateSetting, visibilitySetting, hodEditSetting, studentRegSetting, facultyRegSetting, workingDaysSetting, minRequiredAttendanceSetting, campusLatSetting, campusLongSetting, campusRadiusSetting, campusAccuracySetting, winStartSetting, winEndSetting, timeCheckDisabledSetting] = await Promise.all([
+  const [startDateSetting, endDateSetting, visibilitySetting, hodEditSetting, studentRegSetting, facultyRegSetting, workingDaysSetting, minRequiredAttendanceSetting, campusLatSetting, campusLongSetting, campusRadiusSetting, campusAccuracySetting, winStartSetting, winEndSetting, timeCheckDisabledSetting, studentFreezeSetting] = await Promise.all([
     Setting.findOne({ key: SETTING_KEYS.INTERNSHIP_START_DATE }).lean(),
     Setting.findOne({ key: SETTING_KEYS.INTERNSHIP_END_DATE }).lean(),
     Setting.findOne({ key: SETTING_KEYS.GLOBAL_TASK_VISIBILITY }).lean(),
@@ -183,7 +183,8 @@ const getInternshipSettings = asyncHandler(async (req, res) => {
     Setting.findOne({ key: SETTING_KEYS.CAMPUS_ACCURACY_THRESHOLD }).lean(),
     Setting.findOne({ key: SETTING_KEYS.ATTENDANCE_WINDOW_START }).lean(),
     Setting.findOne({ key: SETTING_KEYS.ATTENDANCE_WINDOW_END }).lean(),
-    Setting.findOne({ key: SETTING_KEYS.ATTENDANCE_TIME_CHECK_DISABLED }).lean()
+    Setting.findOne({ key: SETTING_KEYS.ATTENDANCE_TIME_CHECK_DISABLED }).lean(),
+    Setting.findOne({ key: SETTING_KEYS.STUDENT_FREEZE }).lean()
   ]);
 
   return successResponse(res, {
@@ -201,12 +202,13 @@ const getInternshipSettings = asyncHandler(async (req, res) => {
     campusAccuracyThreshold: campusAccuracySetting ? Number(campusAccuracySetting.value) : 500,
     attendanceWindowStart: winStartSetting ? String(winStartSetting.value) : '09:00',
     attendanceWindowEnd: winEndSetting ? String(winEndSetting.value) : '10:30',
-    attendanceTimeCheckDisabled: timeCheckDisabledSetting ? Boolean(timeCheckDisabledSetting.value) : false
+    attendanceTimeCheckDisabled: timeCheckDisabledSetting ? Boolean(timeCheckDisabledSetting.value) : false,
+    studentFreeze: studentFreezeSetting ? Boolean(studentFreezeSetting.value) : false
   });
 });
 
 const updateInternshipSettings = asyncHandler(async (req, res) => {
-  const { startDate, endDate, globalTaskVisibility, globalHodTaskEditEnabled, studentRegistrationEnabled, facultyRegistrationEnabled, workingDays, minRequiredAttendance, campusLatitude, campusLongitude, campusRadius, campusAccuracyThreshold, attendanceWindowStart, attendanceWindowEnd, attendanceTimeCheckDisabled } = req.body;
+  const { startDate, endDate, globalTaskVisibility, globalHodTaskEditEnabled, studentRegistrationEnabled, facultyRegistrationEnabled, workingDays, minRequiredAttendance, campusLatitude, campusLongitude, campusRadius, campusAccuracyThreshold, attendanceWindowStart, attendanceWindowEnd, attendanceTimeCheckDisabled, studentFreeze } = req.body;
   const { SETTING_KEYS } = require('../utils/constants');
 
   const updates = [];
@@ -342,6 +344,15 @@ const updateInternshipSettings = asyncHandler(async (req, res) => {
       updateOne: {
         filter: { key: SETTING_KEYS.ATTENDANCE_TIME_CHECK_DISABLED },
         update: { value: Boolean(attendanceTimeCheckDisabled) },
+        upsert: true
+      }
+    });
+  }
+  if (studentFreeze !== undefined) {
+    updates.push({
+      updateOne: {
+        filter: { key: SETTING_KEYS.STUDENT_FREEZE },
+        update: { value: Boolean(studentFreeze) },
         upsert: true
       }
     });
@@ -550,43 +561,74 @@ const getDepartmentProjectMatrix = asyncHandler(async (req, res) => {
 
   const projects = await query.lean();
   const projectIds = projects.map((project) => project._id);
+  const projectIdsStr = projectIds.map((id) => String(id));
 
-  let studentStats = [];
+  let studentStatsRaw = [];
+  let facultyGuides = [];
+  let facultyCoGuides = [];
+
   if (projectIds.length > 0) {
-    studentStats = await User.aggregate([
-      {
-        $match: {
-          role: ROLES.STUDENT,
-          appliedProject: { $in: projectIds }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            project: '$appliedProject',
-            department: '$department'
-          },
-          count: { $sum: 1 }
-        }
-      }
+    [studentStatsRaw, facultyGuides, facultyCoGuides] = await Promise.all([
+      User.find({
+        role: ROLES.STUDENT,
+        $or: [
+          { appliedProject: { $in: projectIds } },
+          { projectApplications: { $in: projectIds } }
+        ]
+      })
+        .select('appliedProject projectApplications department')
+        .lean(),
+      User.find({
+        role: ROLES.FACULTY,
+        appliedProject: { $in: projectIds }
+      })
+        .select('name appliedProject')
+        .lean(),
+      User.find({
+        role: ROLES.FACULTY,
+        coGuidedProject: { $in: projectIds }
+      })
+        .select('name coGuidedProject')
+        .lean()
     ]);
   }
 
   const totalByProject = new Map();
   const byProjectDepartment = new Map();
+  const guideMap = new Map();
+  const coGuideMap = new Map();
 
-  studentStats.forEach((entry) => {
-    const projectKey = String(entry._id.project);
-    const deptKey = `${projectKey}:${String(entry._id.department || '')}`;
+  studentStatsRaw.forEach((student) => {
+    const studentProjectKeys = new Set();
+    if (student.appliedProject && projectIdsStr.includes(String(student.appliedProject))) {
+      studentProjectKeys.add(String(student.appliedProject));
+    }
+    (student.projectApplications || []).forEach((pId) => {
+      const pIdStr = String(pId);
+      if (projectIdsStr.includes(pIdStr)) {
+        studentProjectKeys.add(pIdStr);
+      }
+    });
 
-    totalByProject.set(projectKey, (totalByProject.get(projectKey) || 0) + entry.count);
-    byProjectDepartment.set(deptKey, entry.count);
+    studentProjectKeys.forEach((pIdStr) => {
+      const deptKey = `${pIdStr}:${String(student.department || '')}`;
+      totalByProject.set(pIdStr, (totalByProject.get(pIdStr) || 0) + 1);
+      byProjectDepartment.set(deptKey, (byProjectDepartment.get(deptKey) || 0) + 1);
+    });
+  });
+
+  facultyGuides.forEach((f) => {
+    guideMap.set(String(f.appliedProject), f.name);
+  });
+  facultyCoGuides.forEach((f) => {
+    coGuideMap.set(String(f.coGuidedProject), f.name);
   });
 
   const matrix = projects.map((project) => {
+    const projectKey = String(project._id);
     const departments = (project.departments || []).map((entry) => {
       const departmentName = entry.department?.name || 'Unknown';
-      const key = `${String(project._id)}:${departmentName}`;
+      const key = `${projectKey}:${departmentName}`;
       return {
         name: departmentName,
         total: entry.seats || 0,
@@ -598,12 +640,14 @@ const getDepartmentProjectMatrix = asyncHandler(async (req, res) => {
     return {
       ...project,
       baseDept: project.baseDept ? (project.baseDept.name || project.baseDept) : '',
+      guide: guideMap.get(projectKey) || project.guide || '',
       guideDept: project.guideDept ? (project.guideDept.name || project.guideDept) : '',
+      coGuide: coGuideMap.get(projectKey) || project.coGuide || '',
       coGuideDept: project.coGuideDept ? (project.coGuideDept.name || project.coGuideDept) : '',
       projectId: project.projectId || project._id,
       projectTitle: project.title,
       projectTotalSeats: departments.reduce((sum, entry) => sum + (entry.total || 0), 0),
-      projectTotalRegistered: totalByProject.get(String(project._id)) || 0,
+      projectTotalRegistered: totalByProject.get(projectKey) || 0,
       departments
     };
   });

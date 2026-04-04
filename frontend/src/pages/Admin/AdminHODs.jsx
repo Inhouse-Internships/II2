@@ -275,8 +275,8 @@ export default function AdminHODs() {
                             )
                         },
                         { id: "email", label: "Email", minWidth: 200, maxWidth: 300 },
-                        { id: "program", label: "Program", minWidth: 150 },
-                        { id: "department", label: "Department", minWidth: 150 },
+                        { id: "program", label: "Program", minWidth: 150, render: (row) => row.program?.name || row.program || "-" },
+                        { id: "department", label: "Department", minWidth: 150, render: (row) => row.department?.name || row.department || "-" },
                         { id: "projectsHandling", label: "Projects Handling", minWidth: 150 },
                         { id: "phone", label: "Phone", minWidth: 100, render: (row) => row.phone || "N/A" },
                         {

@@ -81,6 +81,7 @@ export default function StudentDashboard() {
   const [showAllProjects, setShowAllProjects] = useState(false);
   const [upcomingReviews, setUpcomingReviews] = useState([]);
   const [todayAttendance, setTodayAttendance] = useState(null);
+  const [studentFreeze, setStudentFreeze] = useState(false);
   const [section, setSection] = useState(() => {
     const saved = sessionStorage.getItem("studentSection");
     return saved || "dashboard";
@@ -140,6 +141,7 @@ export default function StudentDashboard() {
         const dashData = results.dashboard.data;
         setStudent(dashData.student);
         setProjects(dashData.projects);
+        setStudentFreeze(dashData.studentFreeze || false);
       }
 
       if (results.analytics?.status === 200) {
@@ -639,7 +641,7 @@ export default function StudentDashboard() {
                           </Box>
                         </Grid>
                         <Grid size={{ xs: 12, lg: 4 }}>
-                          {student.appliedProject.allowWithdrawal !== false && student.level < 2 && (
+                          {student.appliedProject.allowWithdrawal !== false && student.level < 2 && !studentFreeze && (
                             <Button variant="outlined" color="error" sx={{ borderRadius: 3, fontWeight: 700, textTransform: 'none' }} onClick={handleWithdraw}>
                               Withdraw from Program
                             </Button>
@@ -672,7 +674,7 @@ export default function StudentDashboard() {
                                     }}
                                   >
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                      {student.level < 2 && (
+                                      {student.level < 2 && !studentFreeze && (
                                         <Box sx={{ display: 'flex', flexDirection: 'column' }}>
                                           <IconButton
                                             size="small"
@@ -714,7 +716,7 @@ export default function StudentDashboard() {
                                         size="small"
                                       />
 
-                                      {interviewStatus === 'Qualified' && student.level < 2 && (
+                                      {interviewStatus === 'Qualified' && student.level < 2 && !studentFreeze && (
                                         <Button
                                           variant="contained"
                                           size="small"
@@ -734,15 +736,17 @@ export default function StudentDashboard() {
                               })}
                             </Stack>
                             <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-start' }}>
-                              <Button
-                                variant="text"
-                                color="error"
-                                size="small"
-                                sx={{ textTransform: 'none' }}
-                                onClick={() => handleWithdraw(null)}
-                              >
-                                Withdraw all applications
-                              </Button>
+                              {!studentFreeze && (
+                                <Button
+                                  variant="text"
+                                  color="error"
+                                  size="small"
+                                  sx={{ textTransform: 'none' }}
+                                  onClick={() => handleWithdraw(null)}
+                                >
+                                  Withdraw all applications
+                                </Button>
+                              )}
                             </Box>
                           </Box>
                         ) : (
@@ -1049,6 +1053,7 @@ export default function StudentDashboard() {
                                 (student.projectApplications || []).some(ap => String(ap._id || ap) === String(project._id)))
                                 ? "error" : "primary"}
                               disabled={
+                                studentFreeze ||
                                 !project.isEligible ||
                                 (student.status === 'Approved' && student.appliedProject && (String(student.appliedProject?._id || student.appliedProject) !== String(project._id))) || // Can't apply/withdraw others if approved elsewhere, but user wants withdraw?
                                 (!((String(student.appliedProject?._id || student.appliedProject) === String(project._id)) ||
@@ -1147,7 +1152,7 @@ export default function StudentDashboard() {
           project={viewProject}
           customActions={
             <Box sx={{ display: 'flex', gap: 1, width: '100%', justifyContent: 'flex-end' }}>
-              {viewProject && student.level < 2 && (
+              {viewProject && student.level < 2 && !studentFreeze && (
                 ((String(student.appliedProject?._id || student.appliedProject) === String(viewProject._id)) ||
                   (student.projectApplications || []).some(ap => String(ap._id || ap) === String(viewProject._id)))
               ) && (

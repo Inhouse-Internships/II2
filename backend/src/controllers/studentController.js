@@ -266,7 +266,10 @@ const getDashboard = asyncHandler(async (req, res) => {
     };
   });
 
-  return successResponse(res, { student, projects: projectData });
+  const freezeSetting = await Setting.findOne({ key: SETTING_KEYS.STUDENT_FREEZE }).lean();
+  const studentFreeze = freezeSetting ? Boolean(freezeSetting.value) : false;
+
+  return successResponse(res, { student, projects: projectData, studentFreeze });
 });
 
 const applyForProject = asyncHandler(async (req, res) => {
@@ -277,6 +280,11 @@ const applyForProject = asyncHandler(async (req, res) => {
 
   if (!projectId) {
     throw new AppError(400, 'Project ID is required');
+  }
+
+  const freezeSetting = await Setting.findOne({ key: SETTING_KEYS.STUDENT_FREEZE }).lean();
+  if (freezeSetting && freezeSetting.value) {
+    throw new AppError(403, 'Student actions are currently frozen.');
   }
 
   const student = await User.findById(studentId);
@@ -361,6 +369,11 @@ const withdrawApplication = asyncHandler(async (req, res) => {
   const projectId = req.body.projectId;
 
   ensureStudentAccess(req, studentId);
+
+  const freezeSetting = await Setting.findOne({ key: SETTING_KEYS.STUDENT_FREEZE }).lean();
+  if (freezeSetting && freezeSetting.value) {
+    throw new AppError(403, 'Student actions are currently frozen.');
+  }
 
   const student = await User.findById(studentId);
   if (!student || student.role !== ROLES.STUDENT) {
@@ -478,6 +491,11 @@ const selectFinalProject = asyncHandler(async (req, res) => {
 
   ensureStudentAccess(req, studentId);
 
+  const freezeSetting = await Setting.findOne({ key: SETTING_KEYS.STUDENT_FREEZE }).lean();
+  if (freezeSetting && freezeSetting.value) {
+    throw new AppError(403, 'Student actions are currently frozen.');
+  }
+
   const student = await User.findById(studentId);
   if (!student) throw new AppError(404, 'Student not found');
 
@@ -539,6 +557,11 @@ const reorderApplications = asyncHandler(async (req, res) => {
   const { applications } = req.body;
 
   ensureStudentAccess(req, studentId);
+
+  const freezeSetting = await Setting.findOne({ key: SETTING_KEYS.STUDENT_FREEZE }).lean();
+  if (freezeSetting && freezeSetting.value) {
+    throw new AppError(403, 'Student actions are currently frozen.');
+  }
 
   const student = await User.findById(studentId);
   if (!student || student.role !== ROLES.STUDENT) {

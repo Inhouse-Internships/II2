@@ -306,13 +306,14 @@ const getProjectById = asyncHandler(async (req, res) => {
 
   const result = {
     ...project,
+    baseDept: project.baseDept ? (project.baseDept.name || project.baseDept) : '',
     guide: guide ? guide.name : (project.guide || ''),
     guideEmpId: guide ? guide.employeeId : (project.guideEmpId || ''),
-    guideDept: (guide && guide.department) ? guide.department : (project.guideDept || ''),
+    guideDept: (guide && guide.department) ? guide.department : (project.guideDept ? (project.guideDept.name || project.guideDept) : ''),
     guidePhone: guide ? guide.phone : '',
     coGuide: coGuide ? coGuide.name : (project.coGuide || ''),
     coGuideEmpId: coGuide ? coGuide.employeeId : (project.coGuideEmpId || ''),
-    coGuideDept: (coGuide && coGuide.department) ? coGuide.department : (project.coGuideDept || ''),
+    coGuideDept: (coGuide && coGuide.department) ? coGuide.department : (project.coGuideDept ? (project.coGuideDept.name || project.coGuideDept) : ''),
     coGuidePhone: coGuide ? coGuide.phone : '',
     skillsRequired: project.skillsRequired || '',
     projectOutcome: project.projectOutcome || '',

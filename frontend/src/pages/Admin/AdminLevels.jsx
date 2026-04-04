@@ -93,6 +93,7 @@ export default function AdminLevels(props) {
       if (debouncedSearchQuery) {
         params.append("search", debouncedSearchQuery);
       }
+      params.append("limit", "2000"); // Increase limit to fetch all students for level management
       const res = await apiFetch(`/api/admin/students?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to fetch students");
       const json = await res.json();
@@ -188,7 +189,7 @@ export default function AdminLevels(props) {
       columns={[
         { id: "name", label: "Name", minWidth: 150, maxWidth: 250 },
         { id: "studentId", label: "Student ID", minWidth: 120 },
-        { id: "department", label: "Department", minWidth: 150 },
+        { id: "department", label: "Department", minWidth: 150, render: (s) => s.department?.name || s.department || "-" },
         {
           id: "project", label: "Project Details", minWidth: 220, maxWidth: 350, render: (s) => {
             const hasApplied = s.appliedProject;

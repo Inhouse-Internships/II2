@@ -192,14 +192,23 @@ export default function HODStudents(props) {
       ]);
 
       // Process results
-      if (results?.projects) setProjects(Array.isArray(results.projects) ? results.projects : []);
-      if (results?.settings) setAutoApprove(results.settings.autoApprove || false);
+      if (results?.projects?.data) {
+        const pData = results.projects.data;
+        const extracted = pData?.data || pData || [];
+        setProjects(Array.isArray(extracted) ? extracted : []);
+      }
 
-      if (Array.isArray(results?.programs)) {
-        const data = results.programs;
-        setProgramsList(data);
+      if (results?.settings?.data) {
+        setAutoApprove(results.settings.data.autoApprove || false);
+      }
+
+      const programsData = results?.programs?.data || results?.programs;
+      const programsListArr = Array.isArray(programsData) ? programsData : (programsData?.data || []);
+
+      if (Array.isArray(programsListArr) && programsListArr.length > 0) {
+        setProgramsList(programsListArr);
         const depts = new Map();
-        data.forEach(program => {
+        programsListArr.forEach(program => {
           program.departments?.forEach(dept => {
             if (dept?.name && !depts.has(dept.name)) depts.set(dept.name, dept);
           });
@@ -208,9 +217,15 @@ export default function HODStudents(props) {
       }
 
       if (results?.students) {
-        const sData = results.students.data || results.students;
-        const studentData = sData?.data || sData;
+        const bodyContent = results.students.data;
+        const studentData = bodyContent?.data || bodyContent || [];
         setStudents(Array.isArray(studentData) ? studentData : []);
+
+        if (bodyContent?.pagination) {
+          setTotalCount(bodyContent.pagination.total || studentData.length);
+        } else {
+          setTotalCount(studentData.length);
+        }
       }
 
       setLoading(false);

@@ -84,7 +84,8 @@ export default function AdminSettings() {
     campusAccuracyThreshold: 500,
     attendanceWindowStart: '09:00',
     attendanceWindowEnd: '10:30',
-    attendanceTimeCheckDisabled: false
+    attendanceTimeCheckDisabled: false,
+    studentFreeze: false
   });
 
   // Auto-Approve Settings
@@ -147,7 +148,8 @@ export default function AdminSettings() {
           campusAccuracyThreshold: d.campusAccuracyThreshold ?? 500,
           attendanceWindowStart: d.attendanceWindowStart || '09:00',
           attendanceWindowEnd: d.attendanceWindowEnd || '10:30',
-          attendanceTimeCheckDisabled: d.attendanceTimeCheckDisabled || false
+          attendanceTimeCheckDisabled: d.attendanceTimeCheckDisabled || false,
+          studentFreeze: d.studentFreeze || false
         });
       }
       if (autoSRes && autoSRes.ok) {
@@ -251,6 +253,19 @@ export default function AdminSettings() {
   const handleToggleFacultyRegistration = async () => {
     const newVal = !internshipSettings.facultyRegistrationEnabled;
     const updated = { ...internshipSettings, facultyRegistrationEnabled: newVal };
+    setInternshipSettings(updated);
+    try {
+      await apiFetch("/api/admin/settings/internship", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updated)
+      });
+    } catch (err) { }
+  };
+
+  const handleToggleStudentFreeze = async () => {
+    const newVal = !internshipSettings.studentFreeze;
+    const updated = { ...internshipSettings, studentFreeze: newVal };
     setInternshipSettings(updated);
     try {
       await apiFetch("/api/admin/settings/internship", {
@@ -702,6 +717,23 @@ export default function AdminSettings() {
                             checked={internshipSettings.facultyRegistrationEnabled}
                             onChange={handleToggleFacultyRegistration}
                             color="secondary"
+                          />
+                        </Box>
+                      </Grid>
+                      <Grid size={{ xs: 12 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, bgcolor: internshipSettings.studentFreeze ? '#fef2f2' : '#f8fafc', borderRadius: 3, border: internshipSettings.studentFreeze ? '1px solid #f87171' : '1px solid #f1f5f9' }}>
+                          <Box>
+                            <Typography variant="subtitle2" fontWeight="bold" color={internshipSettings.studentFreeze ? 'error.dark' : 'text.primary'}>
+                              ❄️ Student Freeze
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary">
+                              When enabled, students cannot apply, withdraw, or modify options. View only mode.
+                            </Typography>
+                          </Box>
+                          <Switch
+                            checked={internshipSettings.studentFreeze}
+                            onChange={handleToggleStudentFreeze}
+                            color="error"
                           />
                         </Box>
                       </Grid>

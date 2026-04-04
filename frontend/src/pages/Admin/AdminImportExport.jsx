@@ -139,16 +139,16 @@ export default function AdminImportExport(props) {
       const cols = [
         { key: "Title", label: "Title", accessor: p => p.title },
         { key: "ProjectID", label: "Project ID", accessor: p => p.projectId || "" },
-        { key: "BaseDept", label: "Base Dept", accessor: p => p.baseDept || "" },
+        { key: "BaseDept", label: "Base Dept", accessor: p => p.baseDept?.name || p.baseDept || "" },
         { key: "Description", label: "Description", accessor: p => p.description },
         { key: "SkillsRequired", label: "Skills Required", accessor: p => p.skillsRequired || "" },
         { key: "ProjectOutcome", label: "Project Outcome", accessor: p => p.projectOutcome || "" },
         { key: "Guide", label: "Guide", accessor: p => p.guide || "" },
         { key: "GuideEmpID", label: "Guide Emp ID", accessor: p => p.guideEmpId || "" },
-        { key: "GuideDept", label: "Guide Dept", accessor: p => p.guideDept || "" },
+        { key: "GuideDept", label: "Guide Dept", accessor: p => p.guideDept?.name || p.guideDept || "" },
         { key: "CoGuide", label: "Co-Guide", accessor: p => p.coGuide || "" },
         { key: "CoGuideEmpID", label: "Co-Guide Emp ID", accessor: p => p.coGuideEmpId || "" },
-        { key: "CoGuideDept", label: "Co-Guide Dept", accessor: p => p.coGuideDept || "" },
+        { key: "CoGuideDept", label: "Co-Guide Dept", accessor: p => p.coGuideDept?.name || p.coGuideDept || "" },
         { key: "Status", label: "Status", accessor: p => p.status },
         { key: "TotalSeats", label: "Total Seats", accessor: p => p.totalSeats },
         { key: "Registered", label: "Registered", accessor: p => p.registeredCount },
@@ -157,29 +157,32 @@ export default function AdminImportExport(props) {
         { key: "StudentNames", label: "Student Names", accessor: p => p.studentNames || "" },
         { key: "StudentIDs", label: "Student IDs", accessor: p => p.studentIds || "" },
         { key: "StudentDepts", label: "Student Depts", accessor: p => p.studentDepts || "" },
-        { key: "StudentPhones", label: "Student Phones", accessor: p => p.studentPhones || "" }
+        { key: "StudentPhones", label: "Student Phones", accessor: p => p.studentPhones || "" },
+        { key: "StudentPrograms", label: "Student Programs", accessor: p => p.studentPrograms || "" },
+        { key: "StudentYears", label: "Student Years", accessor: p => p.studentYears || "" },
+        { key: "StudentEmails", label: "Student Emails", accessor: p => p.studentEmails || "" }
       ];
       setAvailableCols(cols);
-      setSelectedCols(cols.map(c => c.key)); // Default select all
+      // Removed automatic setSelectedCols to keep them unchecked initially and prevent reset on enrichment
     } else if (customData && customType === "students") {
       const cols = [
         { key: "Name", label: "Name", accessor: s => s.name },
         { key: "Project", label: "Project", accessor: s => s.appliedProject?.title || "Not Selected" },
         { key: "StudentID", label: "Student ID", accessor: s => s.studentId },
-        { key: "Department", label: "Department", accessor: s => s.department },
+        { key: "Department", label: "Department", accessor: s => s.department?.name || s.department || "" },
         { key: "Phone", label: "Phone", accessor: s => s.phone || "" },
         { key: "Email", label: "Email", accessor: s => s.email },
         { key: "Status", label: "Status", accessor: s => `${s.status || "Pending"}${s.status !== 'Rejected' ? ` L${s.level || 1}` : ''}` },
-        { key: "Year", label: "Year", accessor: s => s.year || "" },
+        { key: "Program", label: "Program", accessor: s => s.program || "" },
+        { key: "Year", label: "Year", accessor: s => s.year?.name || s.year || "" },
         { key: "Guide", label: "Guide", accessor: s => s.appliedProject?.guide || s.guide || "" },
         { key: "GuideEmpID", label: "Guide Emp ID", accessor: s => s.appliedProject?.guideEmpId || "" },
-        { key: "GuideDept", label: "Guide Dept", accessor: s => s.appliedProject?.guideDept || s.guideDept || "" },
+        { key: "GuideDept", label: "Guide Dept", accessor: s => s.appliedProject?.guideDept?.name || s.appliedProject?.guideDept || s.guideDept?.name || s.guideDept || "" },
         { key: "CoGuide", label: "Co-Guide", accessor: s => s.appliedProject?.coGuide || s.coGuide || "" },
         { key: "CoGuideEmpID", label: "Co-Guide Emp ID", accessor: s => s.appliedProject?.coGuideEmpId || "" },
-        { key: "CoGuideDept", label: "Co-Guide Dept", accessor: s => s.appliedProject?.coGuideDept || s.coGuideDept || "" }
+        { key: "CoGuideDept", label: "Co-Guide Dept", accessor: s => s.appliedProject?.coGuideDept?.name || s.appliedProject?.coGuideDept || s.coGuideDept?.name || s.coGuideDept || "" }
       ];
       setAvailableCols(cols);
-      setSelectedCols(cols.map(c => c.key));
     } else if (customData && customType === "departments-overview") {
       const depts = new Set();
       customData.forEach(p => p.departments?.forEach(d => depts.add(d.name)));
@@ -193,29 +196,36 @@ export default function AdminImportExport(props) {
         { key: "Departments", label: "Departments", accessor: p => p.departments.map(d => `${d.name}: ${d.registered}/${d.total}`).join("; ") }
       ];
       setAvailableCols(cols);
-      setSelectedCols(cols.map(c => c.key));
     }
   }, [customData, customType]);
 
   useEffect(() => {
     if (!authorized) return;
     const enrichProjects = async () => {
-      if (customType === "projects" && customData && customData.length > 0 && customData[0].studentNames === undefined) {
+      if (customType === "projects" && customData && customData.length > 0) {
         try {
-          const res = await apiFetch("/api/admin/students");
+          const res = await apiFetch("/api/admin/students?limit=100000");
           if (res.ok) {
             const json = await res.json();
-            const students = json.data || json;
+            const students = json.data?.data || json.data || json;
             setCustomData(prev => prev.map(p => {
-              const projectStudents = students.filter(s =>
-                s.appliedProject && (s.appliedProject._id === p._id || s.appliedProject === p._id)
-              );
+              const pid = String(p._id);
+              const projectStudents = students.filter(s => {
+                const assignedId = s.appliedProject?._id || s.appliedProject;
+                if (String(assignedId) === pid) return true;
+                const apps = (s.projectApplications || []).map(a => String(a._id || a));
+                return apps.includes(pid);
+              });
+
               return {
                 ...p,
-                studentNames: projectStudents.map(s => s.name).join(", "),
-                studentIds: projectStudents.map(s => s.studentId).join(", "),
-                studentDepts: projectStudents.map(s => s.department || "").join(", "),
-                studentPhones: projectStudents.map(s => s.phone || "").join(", ")
+                studentNames: projectStudents.map(s => s.name || "-").join("\n"),
+                studentIds: projectStudents.map(s => s.studentId || "-").join("\n"),
+                studentDepts: projectStudents.map(s => s.department?.name || s.department || "-").join("\n"),
+                studentPhones: projectStudents.map(s => s.phone || "-").join("\n"),
+                studentPrograms: projectStudents.map(s => s.program || "-").join("\n"),
+                studentYears: projectStudents.map(s => s.year?.name || s.year || "-").join("\n"),
+                studentEmails: projectStudents.map(s => s.email || "-").join("\n")
               };
             }));
           }
@@ -293,12 +303,34 @@ export default function AdminImportExport(props) {
 
         if (Array.isArray(data)) {
           const worksheet = XLSX.utils.json_to_sheet(data);
+
+          // Set row heights based on content (including header)
+          const rowHeights = data.map(row => {
+            const maxLines = Object.values(row).reduce((acc, val) => {
+              const lines = String(val || "").split("\n").length;
+              return Math.max(acc, lines);
+            }, 1);
+            return { hpt: maxLines * 15 };
+          });
+          worksheet['!rows'] = [{ hpt: 20 }, ...rowHeights];
+
           XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
         } else {
           // data is { sheetName1: [rows], sheetName2: [rows] }
           Object.entries(data).forEach(([sheetName, rows]) => {
             if (rows && rows.length > 0) {
               const worksheet = XLSX.utils.json_to_sheet(rows);
+
+              // Set row heights based on content (including header)
+              const rowHeights = rows.map(row => {
+                const maxLines = Object.values(row).reduce((acc, val) => {
+                  const lines = String(val || "").split("\n").length;
+                  return Math.max(acc, lines);
+                }, 1);
+                return { hpt: maxLines * 15 };
+              });
+              worksheet['!rows'] = [{ hpt: 20 }, ...rowHeights];
+
               // Sheet names must be <= 31 chars and no special chars
               const safeName = sheetName.replace(/[\[\]\*\?\/\\]/g, "").substring(0, 31);
               XLSX.utils.book_append_sheet(workbook, worksheet, safeName || "Sheet");
@@ -353,10 +385,10 @@ export default function AdminImportExport(props) {
 
   const exportStudents = async () => {
     try {
-      const res = await apiFetch("/api/admin/students");
+      const res = await apiFetch("/api/admin/students?limit=100000");
       if (!res.ok) throw new Error("Failed to fetch students");
       const json = await res.json();
-      const data = json.data || json;
+      const data = json.data?.data || json.data || json;
 
       setCustomData(data);
       setCustomType("students");
@@ -369,24 +401,32 @@ export default function AdminImportExport(props) {
   const exportProjects = async () => {
     try {
       const [projectsRes, studentsRes] = await Promise.all([
-        apiFetch("/api/projects"),
-        apiFetch("/api/admin/students")
+        apiFetch("/api/projects?limit=100000"),
+        apiFetch("/api/admin/students?limit=100000")
       ]);
 
       const projectsJson = await projectsRes.json();
       const projects = projectsJson.data || projectsJson;
       const studentsJson = await studentsRes.json();
-      const students = studentsJson.data || studentsJson;
+      const students = studentsJson.data?.data || studentsJson.data || studentsJson;
       const projectsWithStudents = projects.map(p => {
-        const projectStudents = students.filter(s =>
-          s.appliedProject && (s.appliedProject._id === p._id || s.appliedProject === p._id)
-        );
+        const pid = String(p._id);
+        const projectStudents = students.filter(s => {
+          const assignedId = s.appliedProject?._id || s.appliedProject;
+          if (String(assignedId) === pid) return true;
+          const apps = (s.projectApplications || []).map(a => String(a._id || a));
+          return apps.includes(pid);
+        });
+
         return {
           ...p,
-          studentNames: projectStudents.map(s => s.name).join(", "),
-          studentIds: projectStudents.map(s => s.studentId).join(", "),
-          studentDepts: projectStudents.map(s => s.department || "").join(", "),
-          studentPhones: projectStudents.map(s => s.phone || "").join(", ")
+          studentNames: projectStudents.map(s => s.name || "-").join("\n"),
+          studentIds: projectStudents.map(s => s.studentId || "-").join("\n"),
+          studentDepts: projectStudents.map(s => s.department?.name || s.department || "-").join("\n"),
+          studentPhones: projectStudents.map(s => s.phone || "-").join("\n"),
+          studentPrograms: projectStudents.map(s => s.program || "-").join("\n"),
+          studentYears: projectStudents.map(s => s.year?.name || s.year || "-").join("\n"),
+          studentEmails: projectStudents.map(s => s.email || "-").join("\n")
         };
       });
       setCustomData(projectsWithStudents);
@@ -899,17 +939,19 @@ export default function AdminImportExport(props) {
 
     let exportData;
     if (splitByDept && (customType === "projects" || customType === "students")) {
-      const grouped = {};
-      customData.forEach(item => {
+      const allRows = customData.map(transformItem);
+      const grouped = { "All": allRows };
+
+      customData.forEach((item, index) => {
         let dept = "Unassigned";
         if (customType === "projects") {
-          dept = item.baseDept || (item.departments && item.departments.length > 0 ? item.departments[0].name : "General");
+          dept = item.baseDept?.name || item.baseDept || (item.departments && item.departments.length > 0 ? item.departments[0].name : "General");
         } else {
-          dept = item.department || "General";
+          dept = item.department?.name || item.department || "General";
         }
 
         if (!grouped[dept]) grouped[dept] = [];
-        grouped[dept].push(transformItem(item));
+        grouped[dept].push(allRows[index]);
       });
       exportData = grouped;
     } else {
@@ -928,6 +970,7 @@ export default function AdminImportExport(props) {
   const clearCustomMode = () => {
     setCustomData(null);
     setCustomType("");
+    setSelectedCols([]);
     // Clear history state so refresh doesn't bring it back
     navigate(location.pathname, { replace: true, state: {} });
   };
@@ -1131,7 +1174,13 @@ export default function AdminImportExport(props) {
         />
 
         <Paper elevation={3} sx={{ p: 3, width: "fit-content", maxWidth: "100%" }}>
-          <Typography variant="h6" gutterBottom>Select Columns</Typography>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+            <Typography variant="h6">Select Columns</Typography>
+            <Stack direction="row" spacing={1}>
+              <Button size="small" onClick={() => setSelectedCols(availableCols.map(c => c.key))}>Select All</Button>
+              <Button size="small" onClick={() => setSelectedCols([])} color="error">Deselect All</Button>
+            </Stack>
+          </Box>
           <FormGroup>
             <Grid container spacing={2}>
               {availableCols.map((col) => (
@@ -1248,7 +1297,7 @@ export default function AdminImportExport(props) {
                         });
                       }
                       return (
-                        <TableCell key={`${row._id || row.projectId || index}-${col.key}`}>
+                        <TableCell key={`${row._id || row.projectId || index}-${col.key}`} sx={{ whiteSpace: 'pre-line' }}>
                           {getPreviewData(row, col)}
                         </TableCell>
                       );

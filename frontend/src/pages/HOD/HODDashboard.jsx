@@ -71,9 +71,9 @@ export default function HODDashboard(props) {
         setLoading(true);
         try {
             const results = await batchFetch([
-                { id: 'analytics', method: 'GET', url: `/api/analytics/department/${user.department}` },
-                { id: 'students', method: 'GET', url: `/api/admin/students?department=${user.department}` },
-                { id: 'projects', method: 'GET', url: `/api/projects?baseDept=${user.department}` }
+                { id: 'analytics', method: 'GET', url: `/api/analytics/department/${encodeURIComponent(user.department)}` },
+                { id: 'students', method: 'GET', url: `/api/admin/students?department=${encodeURIComponent(user.department)}` },
+                { id: 'projects', method: 'GET', url: `/api/projects?baseDept=${encodeURIComponent(user.department)}` }
             ]);
 
             if (results?.analytics?.status === 200 && results.analytics.data) {

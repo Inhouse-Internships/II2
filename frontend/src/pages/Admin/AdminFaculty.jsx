@@ -454,7 +454,7 @@ export default function AdminFaculty(props) {
                 </Typography>
               )
             },
-            { id: "department", label: "Dept", minWidth: 150 },
+            { id: "department", label: "Dept", minWidth: 150, render: (f) => f.department?.name || f.department || "-" },
             { id: "email", label: "Email", minWidth: 200 },
             { id: "phone", label: "Phone", minWidth: 120, render: (f) => f.phone || "-" },
             {

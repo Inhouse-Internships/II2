@@ -46,7 +46,7 @@ export default function ProjectDetailsDialog({ open, onClose, project, customAct
                                 {project.guideDept && (
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                         <Typography variant="caption" color="primary" sx={{ fontWeight: 800 }}>Required Dept:</Typography>
-                                        <Chip size="small" label={project.guideDept} variant="outlined" color="primary" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700 }} />
+                                        <Chip size="small" label={project.guideDept?.name || project.guideDept} variant="outlined" color="primary" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700 }} />
                                     </Box>
                                 )}
                             </Box>
@@ -65,7 +65,7 @@ export default function ProjectDetailsDialog({ open, onClose, project, customAct
                                 {project.coGuideDept && (
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                         <Typography variant="caption" color="secondary" sx={{ fontWeight: 800 }}>Required Dept:</Typography>
-                                        <Chip size="small" label={project.coGuideDept} variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700 }} />
+                                        <Chip size="small" label={project.coGuideDept?.name || project.coGuideDept} variant="outlined" color="secondary" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 700 }} />
                                     </Box>
                                 )}
                             </Box>
