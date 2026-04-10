@@ -423,6 +423,10 @@ const getAttendanceAnalytics = asyncHandler(async (req, res) => {
         projectMatch.baseDept = user.department;
     }
 
+    if (user.role !== ROLES.ADMIN) {
+        projectMatch.status = 'Open';
+    }
+
     const projects = await Project.find(projectMatch)
         .select('_id title projectId guide coGuide baseDept status')
         .populate('baseDept', 'name')

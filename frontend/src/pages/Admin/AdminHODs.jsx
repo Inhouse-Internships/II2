@@ -277,7 +277,7 @@ export default function AdminHODs() {
                         { id: "email", label: "Email", minWidth: 200, maxWidth: 300 },
                         { id: "program", label: "Program", minWidth: 150, render: (row) => row.program?.name || row.program || "-" },
                         { id: "department", label: "Department", minWidth: 150, render: (row) => row.department?.name || row.department || "-" },
-                        { id: "projectsHandling", label: "Projects Handling", minWidth: 150 },
+
                         { id: "phone", label: "Phone", minWidth: 100, render: (row) => row.phone || "N/A" },
                         {
                             id: "actions", label: "Actions", minWidth: 100, align: "center", render: (row) => (
@@ -418,7 +418,7 @@ export default function AdminHODs() {
                                     <Box><Typography variant="subtitle2" color="textSecondary">Phone</Typography><Typography variant="body1">{selectedHOD.phone || "-"}</Typography></Box>
                                     <Box><Typography variant="subtitle2" color="textSecondary">Department</Typography><Typography variant="body1">{selectedHOD.department}</Typography></Box>
                                     <Box><Typography variant="subtitle2" color="textSecondary">Program</Typography><Typography variant="body1">{selectedHOD.program || "-"}</Typography></Box>
-                                    <Box><Typography variant="subtitle2" color="textSecondary">Projects Handling</Typography><Typography variant="body1">{selectedHOD.projectsHandling}</Typography></Box>
+
                                 </Box>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                     <Typography variant="subtitle2" color="textSecondary">Status</Typography>

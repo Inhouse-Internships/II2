@@ -288,6 +288,10 @@ const getProjectById = asyncHandler(async (req, res) => {
     .lean();
   if (!project) throw new AppError(404, 'Project not found');
 
+  if (req.user && req.user.role !== ROLES.ADMIN && project.status !== 'Open') {
+    throw new AppError(403, 'This project is closed and you are not authorized to view it');
+  }
+
   const {
     guideMap,
     coGuideMap,

@@ -1516,14 +1516,24 @@ const createHOD = asyncHandler(async (req, res) => {
 const getHODs = asyncHandler(async (req, res) => {
   const hods = await User.find({ role: ROLES.HOD }).select('-password').sort({ createdAt: -1 }).lean();
 
-  const projects = await Project.find().populate('departments.department', 'name').lean();
+  const projects = await Project.find()
+    .populate('departments.department', 'name')
+    .populate('baseDept guideDept coGuideDept', 'name')
+    .lean();
 
   const hodsWithDetails = hods.map(hod => {
     let projectsHandling = 0;
     if (hod.department) {
-      projectsHandling = projects.filter(p =>
-        p.departments && p.departments.some(d => d.department && String(d.department.name).toLowerCase() === String(hod.department).toLowerCase())
-      ).length;
+      const deptName = String(hod.department).toLowerCase();
+      projectsHandling = projects.filter(p => {
+        const matchesBase = p.baseDept && String(p.baseDept.name).toLowerCase() === deptName;
+        const matchesGuide = p.guideDept && String(p.guideDept.name).toLowerCase() === deptName;
+        const matchesCoGuide = p.coGuideDept && String(p.coGuideDept.name).toLowerCase() === deptName;
+        const matchesEligible = p.departments && p.departments.some(d =>
+          d.department && String(d.department.name).toLowerCase() === deptName
+        );
+        return matchesBase || matchesGuide || matchesCoGuide || matchesEligible;
+      }).length;
     }
     return { ...hod, projectsHandling };
   });

@@ -71,7 +71,7 @@ export default function AdminDepartments(props) {
 
     const filteredDeptProjects = useMemo(() => {
         if (!selectedDept || !selectedDept.projects) return [];
-        let list = selectedDept.projects;
+        let list = (selectedDept.projects || []).filter(p => p.status === 'Open');
         if (localSearchQuery) {
             const q = localSearchQuery.toLowerCase();
             list = list.filter(p =>
@@ -185,6 +185,9 @@ export default function AdminDepartments(props) {
         });
 
         matrixData.forEach(project => {
+            // ONLY process Open projects
+            if (project.status !== 'Open') return;
+
             // Determine which departments this project belongs to based on viewMode
             const deptsToAssign = new Set();
 
@@ -369,37 +372,7 @@ export default function AdminDepartments(props) {
                 </Box>
             )
         },
-        {
-            id: "seats", label: "Registered / Seats", minWidth: 150, render: (p) => {
-                const regL2 = p.deptRegisteredL2 || 0;
-                const regL1 = p.deptRegisteredL1 || 0;
-                const total = p.deptSeats || 0;
-                return (
-                    <Box
-                        onDoubleClick={() => {
-                            if (context.setSection) {
-                                context.setSection("students", { projectId: p._id });
-                            }
-                        }}
-                        sx={{ cursor: context.setSection ? "pointer" : "default" }}
-                    >
-                        <Typography sx={{ color: "primary.main", fontWeight: 'bold', textDecoration: context.setSection ? "underline" : "none" }}>
-                            L2: {regL2} / {total}
-                        </Typography>
-                        <Typography variant="caption" color="textSecondary">
-                            L1 Applicants: {regL1}
-                        </Typography>
-                    </Box>
-                );
-            }
-        },
-        {
-            id: "status", label: "Status", minWidth: 120, render: (p) => (
-                <div onClick={() => handleToggleStatus(p)} style={{ cursor: 'pointer', display: 'inline-block' }}>
-                    <StatusChip status={p.status} />
-                </div>
-            )
-        },
+
         {
             id: "actions", label: "Manage", minWidth: 150, render: (p) => (
                 <Stack direction="row" spacing={0.5}>
@@ -534,16 +507,7 @@ export default function AdminDepartments(props) {
                                                 {dept.name}
                                             </Typography>
 
-                                            <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #f1f5f9' }}>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-                                                    <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Assigned (L2):</Typography>
-                                                    <Typography variant="body2" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>{dept.registeredL2}</Typography>
-                                                </Box>
-                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                    <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Applied (L1):</Typography>
-                                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b' }}>{dept.registeredL1}</Typography>
-                                                </Box>
-                                            </Box>
+
                                         </CardContent>
                                     </CardActionArea>
                                 </Card>

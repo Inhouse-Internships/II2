@@ -171,6 +171,10 @@ exports.getAdminReviewStats = async (req, res) => {
             projectsQuery._id = projectId;
         }
 
+        if (req.user.role !== 'admin') {
+            projectsQuery.status = 'Open';
+        }
+
         const allProjects = await Project.find(projectsQuery).select('_id').lean();
         const projectIds = allProjects.map(p => p._id);
 
@@ -200,6 +204,10 @@ exports.getAdminReviewStats = async (req, res) => {
         const deptStats = await Promise.all(mappedDepts.map(async (deptDoc) => {
             const deptProjectsQuery = { baseDept: deptDoc._id };
             if (projectId) deptProjectsQuery._id = projectId;
+
+            if (req.user.role !== 'admin') {
+                deptProjectsQuery.status = 'Open';
+            }
 
             const deptProjects = await Project.find(deptProjectsQuery).select('_id').lean();
             if (deptProjects.length === 0) return null;
@@ -259,6 +267,10 @@ exports.getDetailedReviewList = async (req, res) => {
         }
         if (projectId) {
             projectsQuery._id = projectId;
+        }
+
+        if (req.user.role !== 'admin') {
+            projectsQuery.status = 'Open';
         }
 
         const projects = await Project.find(projectsQuery).select('_id title').lean();

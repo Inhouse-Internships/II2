@@ -150,7 +150,7 @@ const getDepartmentAnalytics = asyncHandler(async (req, res) => {
     projectFilter.status = 'Open';
   }
 
-  const [projects, totalStudents, totalL1Students, totalL2Students, guides] = await Promise.all([
+  const [projects, totalStudents, totalL1Students, totalL2Students, totalGuides] = await Promise.all([
     Project.find(projectFilter)
       .select('_id title projectId guide coGuide')
       .sort({ status: -1, createdAt: -1 })

@@ -54,7 +54,7 @@ const executeBatch = asyncHandler(async (req, res) => {
                     results[id] = { status: 403, error: 'Forbidden: insufficient role' };
                     return;
                 }
-                const deptName = url.split('/').pop().split('?')[0]; // strip query if present
+                const deptName = decodeURIComponent(url.split('/').pop().split('?')[0]); // strip query if present
                 const { getDepartmentAnalytics } = require('./analyticsController');
                 const mockReq = { user: req.user, params: { departmentId: deptName } };
                 await getDepartmentAnalytics(mockReq, mockRes, mockNext);
@@ -68,7 +68,7 @@ const executeBatch = asyncHandler(async (req, res) => {
                 await getGuideAnalytics({ user: req.user }, mockRes, mockNext);
             }
             else if (url.startsWith('/api/admin/students') && method === 'GET') {
-                if (req.user.role !== ROLES.ADMIN) {
+                if (req.user.role !== ROLES.ADMIN && req.user.role !== ROLES.HOD) {
                     results[id] = { status: 403, error: 'Forbidden: insufficient role' };
                     return;
                 }
