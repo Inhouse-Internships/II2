@@ -45,6 +45,8 @@ const userSchema = new mongoose.Schema(
     coGuide: { type: String, trim: true },
     coGuideDept: { type: String, trim: true },
     level: { type: Number, default: 1, min: 1 },
+    isFeePaid: { type: Boolean, default: false },
+
 
     // FIX: Token invalidation support — increment this to revoke all issued JWTs
     tokenVersion: { type: Number, default: 0, select: false }

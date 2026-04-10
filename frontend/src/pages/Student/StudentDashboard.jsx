@@ -142,6 +142,9 @@ export default function StudentDashboard() {
         setStudent(dashData.student);
         setProjects(dashData.projects);
         setStudentFreeze(dashData.studentFreeze || false);
+      } else {
+        const errorMsg = results.dashboard?.error || `Dashboard API returned status ${results.dashboard?.status || 'Unknown'}`;
+        throw new Error(errorMsg);
       }
 
       if (results.analytics?.status === 200) {
@@ -170,8 +173,8 @@ export default function StudentDashboard() {
       }
 
     } catch (err) {
-      console.error(err);
-      setError(err.message);
+      console.error("fetchDashboard error:", err);
+      setError(err.message || "Failed to load dashboard data. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -441,7 +444,7 @@ export default function StudentDashboard() {
 
   if (loading) return <Container sx={{ mt: 5, textAlign: "center" }}><CircularProgress /></Container>;
   if (error) return <Container sx={{ mt: 5 }}><Alert severity="error">{error}</Alert></Container>;
-  if (!student) return <Container sx={{ mt: 5 }}><Alert severity="error">Student not found. Please login again.</Alert></Container>;
+  if (!student) return <Container sx={{ mt: 5 }}><Alert severity="error">Student details not found. Please try logging in again.</Alert></Container>;
 
   return (
     <Box sx={{
@@ -1014,14 +1017,14 @@ export default function StudentDashboard() {
 
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                               <Typography variant="caption" color="text.secondary" fontWeight="bold">
-                                Registration Status by Department:
+                                Eligible Departments:
                               </Typography>
                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                 {project.departments && project.departments.length > 0 ? (
                                   project.departments.map(d => (
                                     <Chip
                                       key={d.department?._id || d.name}
-                                      label={`${d.department?.name || d.name}: ${d.registered !== undefined ? d.registered : 0} / ${d.seats}`}
+                                      label={`${d.department?.name || d.name}`}
                                       size="small"
                                       variant={d.seats > 0 ? "outlined" : "filled"}
                                       color={d.seats > 0 ? "primary" : "default"}

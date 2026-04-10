@@ -184,7 +184,7 @@ const login = asyncHandler(async (req, res) => {
   // Case-insensitive indexed lookup
   let user = await User.findOne({
     email: { $regex: new RegExp(`^${escapeRegex(email)}$`, 'i') }
-  }).select('+password');
+  }).select('+password +tokenVersion');
 
   // Fallback: try student ID or employee ID
   if (!user) {
@@ -200,7 +200,7 @@ const login = asyncHandler(async (req, res) => {
         { studentId: rawInput.toUpperCase() },
         { employeeId: rawInput }
       ]
-    }).select('+password');
+    }).select('+password +tokenVersion');
   }
 
   if (!user) {

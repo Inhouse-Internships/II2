@@ -307,7 +307,7 @@ export default function LandingPage() {
                         '&:hover': { opacity: 0.85 }
                     }}
                 >
-                    <img src="/au-logo.jpg" alt="Aditya University" style={{ height: '40px', width: 'auto', objectFit: 'contain', borderRadius: '50%' }} />
+                    <img src="/au-logo.webp" alt="Aditya University" style={{ height: '40px', width: 'auto', objectFit: 'contain', borderRadius: '50%' }} />
                     <Box sx={{
                         display: 'flex',
                         flexDirection: { xs: 'column', md: 'row' },
@@ -669,7 +669,7 @@ export default function LandingPage() {
                                 position: 'relative'
                             }}>
                                 <LazyLandingImage
-                                    src="/about-image.png"
+                                    src="/about-image.webp"
                                     alt="About Our Project"
                                     sx={{
                                         width: '100%',
@@ -826,7 +826,7 @@ export default function LandingPage() {
                                 }
                             }}>
                                 <LazyLandingImage
-                                    src="/dev-image.png"
+                                    src="/dev-image.webp"
                                     alt="Development Team"
                                     className="dev-image"
                                     sx={{
@@ -886,7 +886,7 @@ export default function LandingPage() {
                 <Container maxWidth="lg">
                     <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: 'center', gap: 4 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <img src="/au-logo.jpg" alt="AU Logo" style={{ height: '40px', filter: 'brightness(1.5)', borderRadius: '50%' }} />
+                            <img src="/au-logo.webp" alt="AU Logo" style={{ height: '40px', filter: 'brightness(1.5)', borderRadius: '50%' }} />
                             <Box sx={{ textAlign: 'left' }}>
                                 <Typography variant="h6" fontWeight={800} sx={{ display: 'flex' }}>
                                     <Box component="span" sx={{ color: '#f26522', mr: 0.5 }}>ADITYA</Box>

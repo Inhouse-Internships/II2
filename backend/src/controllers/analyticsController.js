@@ -39,7 +39,8 @@ const getUniversityAnalytics = asyncHandler(async (req, res) => {
     totalSubmissions,
     completionStats,
     studentAggregates,
-    recentSubmissions
+    recentSubmissions,
+    totalFeePaid
   ] = await Promise.all([
     User.countDocuments({ role: ROLES.STUDENT, level: { $gte: 2 } }),
     User.countDocuments({ role: ROLES.STUDENT, level: 1 }),
@@ -106,7 +107,8 @@ const getUniversityAnalytics = asyncHandler(async (req, res) => {
       .limit(10)
       .populate('student', 'name email')
       .populate('task', 'title')
-      .lean()
+      .lean(),
+    User.countDocuments({ role: ROLES.STUDENT, isFeePaid: true })
   ]);
 
   const result = {
@@ -118,7 +120,8 @@ const getUniversityAnalytics = asyncHandler(async (req, res) => {
     averageCompletion: completionStats[0]?.averageCompletion ?? 0,
     topStudents: studentAggregates[0]?.top ?? [],
     bottomStudents: studentAggregates[0]?.bottom ?? [],
-    recentSubmissions
+    recentSubmissions,
+    totalFeePaid
   };
 
   // Cache for configured TTL (default 2 minutes)
@@ -142,13 +145,19 @@ const getDepartmentAnalytics = asyncHandler(async (req, res) => {
     }, "Department Analytics (Empty)");
   }
 
-  // Find all projects where baseDept matches the department ObjectId
-  const [projects, students, guides] = await Promise.all([
-    Project.find({ baseDept: deptDoc._id })
+  const projectFilter = { baseDept: deptDoc._id };
+  if (req.user.role !== ROLES.ADMIN) {
+    projectFilter.status = 'Open';
+  }
+
+  const [projects, totalStudents, totalL1Students, totalL2Students, guides] = await Promise.all([
+    Project.find(projectFilter)
       .select('_id title projectId guide coGuide')
       .sort({ status: -1, createdAt: -1 })
       .lean(),
     User.countDocuments({ role: ROLES.STUDENT, department: departmentName }),
+    User.countDocuments({ role: ROLES.STUDENT, department: departmentName, level: 1 }),
+    User.countDocuments({ role: ROLES.STUDENT, department: departmentName, level: { $gte: 2 } }),
     User.countDocuments({ role: ROLES.FACULTY, department: departmentName })
   ]);
 
@@ -169,8 +178,7 @@ const getDepartmentAnalytics = asyncHandler(async (req, res) => {
   const totalDeptSubmissions = submissions.length;
   const pendingApprovals = submissions.filter(s => s.status === 'pending').length;
 
-  const totalStudents = students;
-  const totalGuides = guides;
+
 
   let deptDelayedCount = 0;
 
@@ -243,6 +251,8 @@ const getDepartmentAnalytics = asyncHandler(async (req, res) => {
 
   return successResponse(res, {
     totalStudents,
+    totalL1Students,
+    totalL2Students,
     totalSubmissions: totalDeptSubmissions,
     pendingApprovals,
     averageCompletion: deptAvgCompletion,

@@ -484,8 +484,7 @@ export default function HODProjects(props) {
                                     </Box>
                                 ) : "-"
                             },
-                            { id: "seats", label: "Reg / Total", minWidth: 100, render: p => <b>{p.registeredCount || 0} / {p.totalSeats}</b> },
-                            { id: "status", label: "Status", minWidth: 120, render: p => <div onClick={() => promptToggleStatus(p)} style={{ cursor: 'pointer' }}><StatusChip status={p.status} /></div> },
+
                             {
                                 id: "actions", label: "Manage", minWidth: 150, render: p => (
                                     <Stack direction="row" spacing={1}>

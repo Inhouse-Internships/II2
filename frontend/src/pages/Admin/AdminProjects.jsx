@@ -31,7 +31,8 @@ import {
   Badge,
   Grid,
   Autocomplete,
-  Tooltip
+  Tooltip,
+  Menu
 } from "@mui/material";
 import { useNavigate, useOutletContext } from "react-router-dom";
 
@@ -43,7 +44,10 @@ import {
   FilterList as FilterListIcon,
   Assignment as AssignmentIcon,
   CheckCircle as CheckCircleIcon,
-  RateReview as RateReviewIcon
+  RateReview as RateReviewIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+  MoreVert as MoreVertIcon
 } from "@mui/icons-material";
 import { apiFetch } from '../../core/services/apiFetch';
 import DataTable from "../../components/common/DataTable";
@@ -93,6 +97,16 @@ export default function AdminProjects(props) {
   const [selectedObjectsCache, setSelectedObjectsCache] = useState({});
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [columnVisibility, setColumnVisibility] = useState({
+    projectId: true,
+    baseDept: true,
+    guide: true,
+    coGuide: true,
+    seats: true,
+    status: true,
+    manage: true
+  });
+  const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
 
   const [form, setForm] = useState({
     _id: null,
@@ -205,6 +219,28 @@ export default function AdminProjects(props) {
   }, [debouncedSearchQuery, programFilter, deptFilter, guideDeptFilter, coGuideDeptFilter, statusFilter, authorized]);
 
   useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await apiFetch("/api/admin/settings");
+        if (res.ok) {
+          const body = await res.json();
+          const settingsArray = Array.isArray(body) ? body : (body.data || []);
+          const visibilitySetting = settingsArray.find(s => s.key === "projectColumnVisibility");
+          if (visibilitySetting && visibilitySetting.value) {
+            setColumnVisibility(prev => ({
+              ...prev,
+              ...visibilitySetting.value
+            }));
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch column visibility settings", err);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  useEffect(() => {
     if (authorized) {
       fetchProjects();
     }
@@ -284,28 +320,41 @@ export default function AdminProjects(props) {
   };
 
   const handleSubmit = async () => {
-    const url = editingProject
-      ? `/api/projects/${editingProject._id}`
-      : "/api/projects";
+    setActionLoading(true);
+    try {
+      const url = editingProject
+        ? `/api/projects/${editingProject._id}`
+        : "/api/projects";
 
-    const method = editingProject ? "PUT" : "POST";
+      const method = editingProject ? "PUT" : "POST";
 
-    await apiFetch(url, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ...form,
-        departments: editingProject ? editingProject.departments : []
-      })
-    });
+      const res = await apiFetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...form,
+          departments: editingProject ? editingProject.departments : []
+        })
+      });
 
-    setOpen(false);
-    setEditingProject(null);
-    setIsEditingInDialog(false);
-    fetchProjects();
-    fetchAvailableDepts();
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to save project");
+      }
+
+      setOpen(false);
+      setEditingProject(null);
+      setIsEditingInDialog(false);
+      fetchProjects();
+      fetchAvailableDepts();
+    } catch (err) {
+      console.error("Save error:", err);
+      alert(err.message);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleDelete = id => {
@@ -341,14 +390,38 @@ export default function AdminProjects(props) {
     if (!projectToToggle) return;
     setActionLoading(true);
     try {
+      const newStatus = projectToToggle.status === "Open" ? "Closed" : "Open";
       await apiFetch(`/api/projects/${projectToToggle._id}/status`, {
-        method: "PATCH"
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus })
       });
       fetchProjects();
       setStatusConfirmOpen(false);
       setProjectToToggle(null);
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleMenuOpen = (event) => setMoreMenuAnchor(event.currentTarget);
+  const handleMenuClose = () => setMoreMenuAnchor(null);
+
+  const handleToggleColumnVisibility = async (colKey) => {
+    const newValue = !columnVisibility[colKey];
+    const updatedVisibility = { ...columnVisibility, [colKey]: newValue };
+    setColumnVisibility(updatedVisibility);
+    try {
+      await apiFetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "projectColumnVisibility",
+          value: updatedVisibility
+        })
+      });
+    } catch (err) {
+      console.error("Failed to save column visibility setting", err);
     }
   };
 
@@ -428,30 +501,42 @@ export default function AdminProjects(props) {
   );
 
   const saveDepartments = async () => {
-    await apiFetch(`/api/projects/${seatProject._id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        departments
-      })
-    });
+    setActionLoading(true);
+    try {
+      const res = await apiFetch(`/api/projects/${seatProject._id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          departments
+        })
+      });
 
-    setSeatOpen(false);
-    fetchProjects();
-    fetchAvailableDepts();
-
-    if (editingProject && editingProject._id === seatProject._id) {
-      try {
-        const res = await apiFetch(`/api/projects/${seatProject._id}`);
-        if (res.ok) {
-          const json = await res.json();
-          setEditingProject(json.data || json);
-        }
-      } catch (err) {
-        console.error("Failed to refresh project details after saving departments", err);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to update departments");
       }
+
+      setSeatOpen(false);
+      fetchProjects();
+      fetchAvailableDepts();
+
+      if (editingProject && editingProject._id === seatProject._id) {
+        try {
+          const res = await apiFetch(`/api/projects/${seatProject._id}`);
+          if (res.ok) {
+            const json = await res.json();
+            setEditingProject(json.data || json);
+          }
+        } catch (err) {
+          console.error("Failed to refresh project details after saving departments", err);
+        }
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -793,6 +878,59 @@ export default function AdminProjects(props) {
             <Button variant="contained" onClick={openAddDialog}>
               Add Project
             </Button>
+
+            <IconButton onClick={handleMenuOpen} sx={{ ml: 1 }}>
+              <MoreVertIcon />
+            </IconButton>
+
+            <Menu
+              anchorEl={moreMenuAnchor}
+              open={Boolean(moreMenuAnchor)}
+              onClose={handleMenuClose}
+              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+              PaperProps={{
+                sx: { width: 220, maxHeight: 400 }
+              }}
+            >
+              <Box sx={{ px: 2, py: 1 }}>
+                <Typography variant="overline" color="textSecondary" fontWeight="bold">
+                  Column Visibility
+                </Typography>
+              </Box>
+              <Divider />
+              {[
+                { key: 'projectId', label: 'Show ID in Title' },
+                { key: 'baseDept', label: 'Show Dept in Title' },
+                { key: 'guide', label: 'Guide Column' },
+                { key: 'coGuide', label: 'Co-Guide Column' },
+                { key: 'seats', label: 'Seats Utilization' },
+                { key: 'status', label: 'Project Status' },
+                { key: 'manage', label: 'Action Icons' }
+              ].map((col) => (
+                <MenuItem
+                  key={col.key}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleColumnVisibility(col.key);
+                  }}
+                  sx={{ py: 0 }}
+                >
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        size="small"
+                        checked={columnVisibility[col.key]}
+                        onChange={() => handleToggleColumnVisibility(col.key)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    }
+                    label={<Typography variant="body2">{col.label}</Typography>}
+                    sx={{ width: '100%', m: 0, py: 1 }}
+                  />
+                </MenuItem>
+              ))}
+            </Menu>
           </Stack>
         }
       />
@@ -823,7 +961,10 @@ export default function AdminProjects(props) {
       <DataTable
         columns={[
           {
-            id: "title", label: "Title", minWidth: 200, render: (p) => (
+            id: "title",
+            label: "Project Info",
+            minWidth: 300,
+            render: (p) => (
               <Box>
                 <Typography
                   onClick={() => openProjectDialog(p)}
@@ -840,11 +981,18 @@ export default function AdminProjects(props) {
                 >
                   {p.title}
                 </Typography>
-                <Typography variant="caption" color="textSecondary">{p.projectId || "-"} • {p.baseDept || "-"}</Typography>
+                {(columnVisibility.projectId || columnVisibility.baseDept) && (
+                  <Typography variant="caption" color="textSecondary">
+                    {[
+                      columnVisibility.projectId ? (p.projectId || '-') : null,
+                      columnVisibility.baseDept ? (p.baseDept || '-') : null
+                    ].filter(Boolean).join(" • ")}
+                  </Typography>
+                )}
               </Box>
             )
           },
-          {
+          ...(columnVisibility.guide ? [{
             id: "guide", label: "Guide", minWidth: 150, render: (p) => (
               <Box>
                 <Typography
@@ -868,8 +1016,8 @@ export default function AdminProjects(props) {
                 )}
               </Box>
             )
-          },
-          {
+          }] : []),
+          ...(columnVisibility.coGuide ? [{
             id: "coGuide", label: "Co-Guide", minWidth: 150, render: (p) => (
               <Box>
                 <Typography
@@ -893,35 +1041,35 @@ export default function AdminProjects(props) {
                 )}
               </Box>
             )
-          },
-          {
-            id: "seats", label: "Registered / Total Seats", minWidth: 150, render: (p) => (
-              <Typography
-                onDoubleClick={() => {
-                  if (context.setSection) {
-                    context.setSection("students", { projectId: p._id });
-                  } else {
-                    // Fallback to searching for the base route
-                    const path = window.location.pathname.startsWith('/hod') ? '/hod' : '/admin';
-                    navigate(path);
-                    // We might need to set some global state or just rely on Sidebar setSection
-                  }
-                }}
-                sx={{ cursor: "pointer", color: "primary.main", textDecoration: "underline" }}
-                title="Double click to view assigned students"
-              >
-                {p.registeredCount || 0} / {p.totalSeats}
-              </Typography>
-            )
-          },
-          {
+          }] : []),
+          ...(columnVisibility.seats ? [{
+            id: "seats", label: "Prov. Selected / Total Seats", minWidth: 150, render: (p) => {
+              return (
+                <Typography
+                  onDoubleClick={() => {
+                    if (context.setSection) {
+                      context.setSection("students", { projectId: p._id });
+                    } else {
+                      const path = window.location.pathname.startsWith('/hod') ? '/hod' : '/admin';
+                      navigate(path);
+                    }
+                  }}
+                  sx={{ cursor: "pointer", color: "primary.main", textDecoration: "underline" }}
+                  title="Double click to view assigned students"
+                >
+                  {p.l2StudentsCount !== undefined ? p.l2StudentsCount : 0} / {p.totalSeats}
+                </Typography>
+              );
+            }
+          }] : []),
+          ...(columnVisibility.status ? [{
             id: "status", label: "Status", minWidth: 120, render: (p) => (
               <div onClick={() => promptToggleStatus(p)} style={{ cursor: 'pointer', display: 'inline-block' }}>
                 <StatusChip status={p.status} />
               </div>
             )
-          },
-          {
+          }] : []),
+          ...(columnVisibility.manage ? [{
             id: "actions", label: "Manage", minWidth: 150, render: (p) => (
               <Stack direction="row" spacing={0.5}>
                 <Tooltip title="Daily status">
@@ -959,7 +1107,7 @@ export default function AdminProjects(props) {
                 </Tooltip>
               </Stack>
             )
-          }
+          }] : [])
         ]}
         rows={projects}
         loading={loading}
@@ -1223,12 +1371,16 @@ export default function AdminProjects(props) {
               </Box>
               <Autocomplete
                 options={sortedFaculty}
-                getOptionLabel={(option) => option.name}
-                value={sortedFaculty.find(f => f.name === form.guide) || null}
-                onChange={(event, newValue) => {
-                  handleChange({ target: { name: 'guide', value: newValue ? newValue.name : '' } });
+                freeSolo
+                getOptionLabel={(option) => (typeof option === 'string' ? option : option.name)}
+                value={form.guide || null}
+                onInputChange={(event, newInputValue) => {
+                  handleChange({ target: { name: 'guide', value: newInputValue } });
                 }}
-                getOptionDisabled={(option) => option.name === form.coGuide && !!form.coGuide}
+                onChange={(event, newValue) => {
+                  const val = typeof newValue === 'string' ? newValue : (newValue ? newValue.name : '');
+                  handleChange({ target: { name: 'guide', value: val } });
+                }}
                 renderInput={(params) => <TextField {...params} label="Guide" fullWidth sx={{ mb: 2 }} />}
               />
               <TextField fullWidth sx={{ mb: 2 }} label="Guide Employee ID" name="guideEmpId" value={form.guideEmpId} onChange={handleChange} />
@@ -1241,12 +1393,16 @@ export default function AdminProjects(props) {
               />
               <Autocomplete
                 options={sortedFaculty}
-                getOptionLabel={(option) => option.name}
-                value={sortedFaculty.find(f => f.name === form.coGuide) || null}
-                onChange={(event, newValue) => {
-                  handleChange({ target: { name: 'coGuide', value: newValue ? newValue.name : '' } });
+                freeSolo
+                getOptionLabel={(option) => (typeof option === 'string' ? option : option.name)}
+                value={form.coGuide || null}
+                onInputChange={(event, newInputValue) => {
+                  handleChange({ target: { name: 'coGuide', value: newInputValue } });
                 }}
-                getOptionDisabled={(option) => option.name === form.guide && !!form.guide}
+                onChange={(event, newValue) => {
+                  const val = typeof newValue === 'string' ? newValue : (newValue ? newValue.name : '');
+                  handleChange({ target: { name: 'coGuide', value: val } });
+                }}
                 renderInput={(params) => <TextField {...params} label="Co-Guide" fullWidth sx={{ mb: 2 }} />}
               />
               <TextField fullWidth sx={{ mb: 2 }} label="Co-Guide Employee ID" name="coGuideEmpId" value={form.coGuideEmpId} onChange={handleChange} />
@@ -1330,13 +1486,17 @@ export default function AdminProjects(props) {
                   allowWithdrawal: editingProject.allowWithdrawal !== undefined ? editingProject.allowWithdrawal : true
                 });
               }}>Cancel</Button>
-              <Button variant="contained" onClick={handleSubmit}>Save</Button>
+              <Button variant="contained" onClick={handleSubmit} disabled={actionLoading}>
+                {actionLoading ? "Saving..." : "Save"}
+              </Button>
             </>
           ) : (
             // Actions for Add Project
             <>
               <Button onClick={() => setOpen(false)}>Cancel</Button>
-              <Button variant="contained" onClick={handleSubmit}>Create</Button>
+              <Button variant="contained" onClick={handleSubmit} disabled={actionLoading}>
+                {actionLoading ? "Creating..." : "Create"}
+              </Button>
             </>
           )}
         </DialogActions>

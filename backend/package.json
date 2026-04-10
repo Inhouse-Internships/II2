@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node src/server.js",
+    "predev": "powershell -Command \"$pids = (netstat -ano | Select-String ':5000\\s+' | ForEach-Object { ($_ -split '\\s+')[-1] } | Where-Object { $_ -ne '0' }) | Sort-Object -Unique; if ($pids) { foreach ($p in $pids) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue } }\"",
     "dev": "nodemon src/server.js",
     "check-env": "node check_settings.js",
     "db:backup": "node scripts/duplicate_db.js",

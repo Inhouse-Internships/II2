@@ -49,7 +49,8 @@ const SETTING_KEYS = Object.freeze({
   ATTENDANCE_WINDOW_START: 'attendanceWindowStart', // e.g. "09:00"
   ATTENDANCE_WINDOW_END: 'attendanceWindowEnd',       // e.g. "10:30"
   ATTENDANCE_TIME_CHECK_DISABLED: 'attendanceTimeCheckDisabled', // boolean, bypass time window for testing
-  STUDENT_FREEZE: 'studentFreeze'
+  STUDENT_FREEZE: 'studentFreeze',
+  PROJECT_COLUMN_VISIBILITY: 'projectColumnVisibility'
 });
 
 const FACULTY_ASSIGNMENT_ROLE = Object.freeze({

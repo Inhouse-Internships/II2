@@ -552,7 +552,12 @@ const getAllDbDepartments = asyncHandler(async (req, res) => {
 const getDepartmentProjectMatrix = asyncHandler(async (req, res) => {
   const { limit, skip } = parsePagination(req.query);
 
-  let query = Project.find()
+  const filter = {};
+  if (req.user.role !== ROLES.ADMIN) {
+    filter.status = 'Open';
+  }
+
+  let query = Project.find(filter)
     .populate('departments.department')
     .populate('baseDept guideDept coGuideDept', 'name')
     .sort({ createdAt: -1 });
@@ -576,7 +581,7 @@ const getDepartmentProjectMatrix = asyncHandler(async (req, res) => {
           { projectApplications: { $in: projectIds } }
         ]
       })
-        .select('appliedProject projectApplications department')
+        .select('appliedProject projectApplications department level')
         .lean(),
       User.find({
         role: ROLES.FACULTY,
@@ -599,22 +604,12 @@ const getDepartmentProjectMatrix = asyncHandler(async (req, res) => {
   const coGuideMap = new Map();
 
   studentStatsRaw.forEach((student) => {
-    const studentProjectKeys = new Set();
-    if (student.appliedProject && projectIdsStr.includes(String(student.appliedProject))) {
-      studentProjectKeys.add(String(student.appliedProject));
-    }
-    (student.projectApplications || []).forEach((pId) => {
-      const pIdStr = String(pId);
-      if (projectIdsStr.includes(pIdStr)) {
-        studentProjectKeys.add(pIdStr);
-      }
-    });
-
-    studentProjectKeys.forEach((pIdStr) => {
+    if (student.level === 2 && student.appliedProject && projectIdsStr.includes(String(student.appliedProject))) {
+      const pIdStr = String(student.appliedProject);
       const deptKey = `${pIdStr}:${String(student.department || '')}`;
       totalByProject.set(pIdStr, (totalByProject.get(pIdStr) || 0) + 1);
       byProjectDepartment.set(deptKey, (byProjectDepartment.get(deptKey) || 0) + 1);
-    });
+    }
   });
 
   facultyGuides.forEach((f) => {
@@ -665,6 +660,7 @@ const getStudents = asyncHandler(async (req, res) => {
     status,
     year,
     level,
+    isFeePaid,
     missingDetails,
     page = 1,
     limit = 20
@@ -692,6 +688,14 @@ const getStudents = asyncHandler(async (req, res) => {
   if (status && status !== 'All') filter.status = status;
   if (year && year !== 'All') filter.year = year;
   if (level && level !== 'All') filter.level = Number(level);
+  if (isFeePaid !== undefined && isFeePaid !== 'All') {
+    if (String(isFeePaid) === 'true') {
+      filter.isFeePaid = true;
+    } else {
+      filter.isFeePaid = { $ne: true };
+    }
+  }
+
 
   if (projectId && projectId !== 'All') {
     if (projectId === 'unassigned') {
@@ -758,7 +762,7 @@ const getStudents = asyncHandler(async (req, res) => {
           { path: 'departments.department', select: 'name' }
         ]
       })
-      .select('name email phone studentId department program year status level appliedProject projectApplications applications createdAt')
+      .select('name email phone studentId department program year status level appliedProject projectApplications applications createdAt isFeePaid')
       .sort({ createdAt: -1 })
       .skip(skipNum)
       .limit(limitNum)
@@ -889,6 +893,10 @@ const updateStudent = asyncHandler(async (req, res) => {
   student.status = nextStatus;
   student.guide = req.body.guide ?? student.guide;
   student.level = req.body.level ? Number(req.body.level) : (student.level || 1);
+  if (req.body.isFeePaid !== undefined) {
+    student.isFeePaid = req.body.isFeePaid;
+  }
+
 
   if (req.body.password) {
     student.password = await hashPassword(req.body.password);

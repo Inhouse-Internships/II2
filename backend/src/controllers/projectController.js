@@ -122,6 +122,14 @@ const getAllProjects = asyncHandler(async (req, res) => {
 
   let filter = {};
 
+  // Role-based visibility: Only admins can see Closed projects.
+  // Others are restricted to Open projects.
+  if (req.user && req.user.role !== ROLES.ADMIN) {
+    filter.status = 'Open';
+  } else if (status && status !== 'All') {
+    filter.status = status;
+  }
+
   const resolveDept = async (deptName) => {
     if (!deptName) return null;
     if (deptName.match(/^[0-9a-fA-F]{24}$/)) return deptName; // Already ObjectId
@@ -254,6 +262,7 @@ const getAllProjects = asyncHandler(async (req, res) => {
       students: projectStudents,
       departments,
       registeredCount: studentCountMap.get(projectKey) || 0,
+      l2StudentsCount: projectStudents.filter(s => s.level === 2 && String(s.appliedProject) === projectKey).length,
       totalSeats: departments.reduce((sum, entry) => sum + (entry.seats || 0), 0),
       hasLevel2Student: projectStudents.some((student) => student.level === 2),
       hasLevel1Student: projectStudents.some((student) => student.level === 1)
@@ -320,6 +329,7 @@ const getProjectById = asyncHandler(async (req, res) => {
     students: projectStudents,
     departments,
     registeredCount: studentCountMap.get(projectKey) || 0,
+    l2StudentsCount: projectStudents.filter(s => s.level === 2 && String(s.appliedProject) === projectKey).length,
     totalSeats: departments.reduce((sum, entry) => sum + (entry.seats || 0), 0)
   };
 

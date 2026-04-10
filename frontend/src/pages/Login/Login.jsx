@@ -123,7 +123,7 @@ export default function Login() {
               '&:hover': { opacity: 0.85 }
             }}
           >
-            <img src="/au-logo.jpg" alt="Logo" style={{ height: '40px', objectFit: 'contain', borderRadius: '50%' }} />
+            <img src="/au-logo.webp" alt="Logo" style={{ height: '40px', objectFit: 'contain', borderRadius: '50%' }} />
             <Typography sx={{ fontWeight: 800, fontSize: '1.2rem', display: 'flex', letterSpacing: -0.5 }}>
               <Box component="span" sx={{ color: '#f26522', mr: 0.5 }}>ADITYA</Box>
               <Box component="span" sx={{ color: '#004b87' }}>UNIVERSITY</Box>

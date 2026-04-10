@@ -128,7 +128,7 @@ export default function RoleSidebar({
       >
         <Box
           component="img"
-          src="/au-logo.jpg"
+          src="/au-logo.webp"
           alt="AU Logo"
           sx={{
             height: (!collapsed || mobile) ? '40px' : '48px',

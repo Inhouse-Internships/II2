@@ -22,7 +22,18 @@ async function startServer() {
   // 3. Start HTTP server
   const server = http.createServer(app);
 
-  server.listen(env.PORT, env.HOST);
+  server.on('error', (e) => {
+    if (e.code === 'EADDRINUSE') {
+      console.error(`[server] Port ${env.PORT} is already in use. Attempting to clear and restart...`);
+      // No active self-repair here as nodemon/predev handles the bash part, 
+      // but logging clearly helps the user.
+    }
+  });
+
+  server.listen(env.PORT, env.HOST, () => {
+    console.log(`[server] Server running at http://${env.DISPLAY_HOST}:${env.PORT}`);
+    console.log(`[server] Health check: http://${env.DISPLAY_HOST}:${env.PORT}/health`);
+  });
 
   // 4. Graceful shutdown handler
   const shutdown = async (signal) => {

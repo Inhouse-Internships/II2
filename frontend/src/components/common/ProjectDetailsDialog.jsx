@@ -16,7 +16,13 @@ const CrownIcon = (props) => (
 export default function ProjectDetailsDialog({ open, onClose, project, customActions, renderStatus, onMakeLeader }) {
     if (!project) return null;
 
-    const leader = project.students?.find(s => String(s._id) === String(project.teamLeader));
+    const eligibleStudents = (project.students || []).filter(s => {
+        if (s.level !== 2) return false;
+        const app = (s.applications || []).find(a => String(a.project?._id || a.project) === String(project._id));
+        if (app) return app.status === 'Qualified' || app.status === 'Pending';
+        return String(s.appliedProject?._id || s.appliedProject) === String(project._id);
+    });
+    const leader = eligibleStudents.find(s => String(s._id) === String(project.teamLeader));
     const leaderName = leader ? `${leader.name} (${leader.studentId || ''})` : "Not Assigned";
 
     return (
@@ -91,27 +97,19 @@ export default function ProjectDetailsDialog({ open, onClose, project, customAct
                 </Box>
                 <Divider sx={{ my: 2 }} />
                 <Grid container spacing={2} sx={{ mb: 2 }}>
-                    <Grid size={{ xs: 12, sm: 4 }}>
+                    <Grid size={{ xs: 12, sm: 12 }}>
                         <Typography variant="subtitle2" color="text.secondary">Status</Typography>
                         {renderStatus ? renderStatus(project) : <StatusChip status={project.status} />}
                     </Grid>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                        <Typography variant="subtitle2" color="text.secondary">Total Seats</Typography>
-                        <Typography variant="body1">{project.totalSeats}</Typography>
-                    </Grid>
-                    <Grid size={{ xs: 6, sm: 4 }}>
-                        <Typography variant="subtitle2" color="text.secondary">Registered</Typography>
-                        <Typography variant="body1">{project.registeredCount || 0}</Typography>
-                    </Grid>
                 </Grid>
                 <Box>
-                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>Departments & Seats</Typography>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>Departments</Typography>
                     <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                         {project.departments && project.departments.length > 0 ? (
                             project.departments.map((d, i) => {
                                 const deptName = d.name || d.department?.name || "Unknown";
                                 return (
-                                    <Chip key={i} label={`${deptName}: ${d.registered || 0} / ${d.seats}`} variant="outlined" />
+                                    <Chip key={i} label={deptName} variant="outlined" />
                                 );
                             })
                         ) : (
@@ -119,12 +117,12 @@ export default function ProjectDetailsDialog({ open, onClose, project, customAct
                         )}
                     </Box>
                 </Box>
-                {project.students && project.students.length > 0 && (
+                {eligibleStudents.length > 0 && (
                     <>
                         <Divider sx={{ my: 2 }} />
                         <Typography variant="subtitle2" color="text.secondary" gutterBottom>Assigned Students</Typography>
                         <Stack spacing={1} sx={{ mt: 1 }}>
-                            {project.students.map((student, i) => (
+                            {eligibleStudents.map((student, i) => (
                                 <Box key={i} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, border: '1px solid #eee', borderRadius: 1 }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                         <Typography variant="body2">{student.name} ({student.studentId})</Typography>
@@ -151,6 +149,6 @@ export default function ProjectDetailsDialog({ open, onClose, project, customAct
                     <Button onClick={onClose}>Close</Button>
                 )}
             </DialogActions>
-        </Dialog>
+        </Dialog >
     );
 }

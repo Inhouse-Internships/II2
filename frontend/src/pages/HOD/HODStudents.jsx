@@ -324,13 +324,13 @@ export default function HODStudents(props) {
   };
 
   useEffect(() => {
-    if (!authorized) return;
+    if (!authorized || !user?.department) return;
     if (students.length === 0) {
       initialLoad();
     } else {
       loadStudents();
     }
-  }, [authorized, debouncedSearchQuery, appliedFilters]);
+  }, [authorized, user?.department, debouncedSearchQuery, appliedFilters]);
 
   // Save filters to localStorage
   useEffect(() => {

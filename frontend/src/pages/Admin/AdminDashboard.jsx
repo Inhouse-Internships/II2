@@ -6,6 +6,7 @@ import {
 import {
   People as PeopleIcon,
   Category as CategoryIcon,
+  Paid as PaidIcon,
   Assessment as AssessmentIcon,
   Timeline as TimelineIcon
 } from '@mui/icons-material';
@@ -23,7 +24,7 @@ const gridContainerSx = { mb: 4, width: '100%', ml: 0 };
 const bottomGridSx = { width: '100%', ml: 0 };
 const sectionLoaderSx = { display: 'flex', justifyContent: 'center', p: 4 };
 const cardContentSx = { p: 3, flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' };
-const cardHeaderRowSx = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 };
+const cardHeaderRowSx = { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, gap: 1 };
 const chipRowSx = { display: 'flex', gap: 1, mt: 2 };
 const tableRowCellSx = { display: 'flex', alignItems: 'center', gap: 1.5 };
 const trendBoxSx = { mt: 4 };
@@ -42,7 +43,7 @@ const STAT_CARDS = [
   {
     key: 'students',
     icon: PeopleIcon,
-    label: 'Total Students',
+    label: 'Provisionally Selected Students', // Was L2 Students
     background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
     border: '1px solid #bae6fd',
     iconColor: '#0369a1',
@@ -53,9 +54,9 @@ const STAT_CARDS = [
     l1ChipSx: { bgcolor: '#bae6fd', color: '#0369a1', fontWeight: 'bold' }
   },
   {
-    key: 'departments',
-    icon: CategoryIcon,
-    label: 'Departments',
+    key: 'feePaid',
+    icon: PaidIcon,
+    label: 'Enrolled Students',
     background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
     border: '1px solid #a7f3d0',
     iconColor: '#047857',
@@ -175,8 +176,8 @@ function StatCardSkeleton() {
 function getStatValue(key, analytics) {
   if (!analytics) return null;
   switch (key) {
-    case 'students': return (analytics.totalStudents || 0) + (analytics.totalL1Students || 0);
-    case 'departments': return analytics.totalDepartments || 0;
+    case 'students': return analytics.totalStudents || 0;
+    case 'feePaid': return analytics.totalFeePaid || 0;
     case 'submissions': return analytics.totalSubmissions || 0;
     case 'completion': return `${Math.round(analytics.averageCompletion || 0)}%`;
     default: return 0;
@@ -238,7 +239,7 @@ export default function AdminDashboard(props) {
                     <Box>
                       <Box sx={cardHeaderRowSx}>
                         <IconComp sx={card.iconSx} />
-                        <Typography variant="caption" sx={card.captionSx}>
+                        <Typography variant="caption" sx={{ ...card.captionSx, textAlign: 'right', lineHeight: 1.2 }}>
                           {card.label}
                         </Typography>
                       </Box>
@@ -254,7 +255,7 @@ export default function AdminDashboard(props) {
                           sx={card.l1ChipSx}
                         />
                         <Chip
-                          label={`L2: ${analytics?.totalStudents || 0}`}
+                          label={`Total: ${(analytics?.totalStudents || 0) + (analytics?.totalL1Students || 0)}`}
                           size="small"
                           sx={card.l1ChipSx}
                         />

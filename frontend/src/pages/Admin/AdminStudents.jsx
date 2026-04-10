@@ -28,7 +28,9 @@ import {
   CircularProgress,
   Badge,
   Autocomplete,
-  Tooltip
+  Tooltip,
+  Menu,
+  Divider
 } from "@mui/material";
 import { useLocation, useNavigate, useOutletContext } from "react-router-dom";
 
@@ -42,7 +44,8 @@ import {
   Assignment as AssignmentIcon,
   CheckCircle as CheckCircleIcon,
   RateReview as RateReviewIcon,
-  Mail as MailIcon
+  Mail as MailIcon,
+  MoreVert as MoreVertIcon
 } from "@mui/icons-material";
 import { useSnackbar } from 'notistack';
 import { apiFetch } from '../../core/services/apiFetch';
@@ -100,6 +103,7 @@ export default function AdminStudents(props) {
       statusFilter: savedFilters?.appliedFilters?.statusFilter || "All",
       yearFilter: savedFilters?.appliedFilters?.yearFilter || "All",
       levelFilter: savedFilters?.appliedFilters?.levelFilter || "All",
+      isFeePaidFilter: savedFilters?.appliedFilters?.isFeePaidFilter || "All",
       missingDetails: savedFilters?.appliedFilters?.missingDetails || false
     };
   });
@@ -111,6 +115,7 @@ export default function AdminStudents(props) {
   const [statusFilter, setStatusFilter] = useState(appliedFilters.statusFilter);
   const [yearFilter, setYearFilter] = useState(appliedFilters.yearFilter);
   const [levelFilter, setLevelFilter] = useState(appliedFilters.levelFilter);
+  const [isFeePaidFilter, setIsFeePaidFilter] = useState(appliedFilters.isFeePaidFilter || "All");
   const [missingDetails, setMissingDetails] = useState(appliedFilters.missingDetails);
   const [filteredDepartments, setFilteredDepartments] = useState([]);
   const [yearOptions, setYearOptions] = useState([1, 2, 3, 4]);
@@ -140,6 +145,21 @@ export default function AdminStudents(props) {
     guide: "",
     status: "Pending"
   });
+
+  const [columnVisibility, setColumnVisibility] = useState({
+    studentId: true,
+    guide: true,
+    coGuide: true,
+    feePaid: true,
+    phone: true,
+    project: true,
+    interviews: true,
+    department: true,
+    year: true,
+    status: true,
+    actions: true
+  });
+  const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
 
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -179,6 +199,7 @@ export default function AdminStudents(props) {
       if (appliedFilters.statusFilter !== "All") params.append("status", appliedFilters.statusFilter);
       if (appliedFilters.yearFilter !== "All") params.append("year", appliedFilters.yearFilter);
       if (appliedFilters.levelFilter !== "All") params.append("level", appliedFilters.levelFilter);
+      if (appliedFilters.isFeePaidFilter !== "All") params.append("isFeePaid", appliedFilters.isFeePaidFilter);
       if (appliedFilters.missingDetails) params.append("missingDetails", "true");
 
       params.append("limit", 100000);
@@ -253,8 +274,49 @@ export default function AdminStudents(props) {
       fetchProjects();
       fetchPrograms();
       fetchSettings();
+
+      const fetchColumnSettings = async () => {
+        try {
+          const res = await apiFetch("/api/admin/settings");
+          if (res.ok) {
+            const body = await res.json();
+            const settingsArray = Array.isArray(body) ? body : (body.data || []);
+            const visibilitySetting = settingsArray.find(s => s.key === "studentColumnVisibility");
+            if (visibilitySetting && visibilitySetting.value) {
+              setColumnVisibility(prev => ({
+                ...prev,
+                ...visibilitySetting.value
+              }));
+            }
+          }
+        } catch (err) {
+          console.error("Failed to load column settings:", err);
+        }
+      };
+      fetchColumnSettings();
     }
   }, [authorized]);
+
+  const handleToggleColumnVisibility = async (key) => {
+    const updatedVisibility = {
+      ...columnVisibility,
+      [key]: !columnVisibility[key]
+    };
+    setColumnVisibility(updatedVisibility);
+
+    try {
+      await apiFetch("/api/admin/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: "studentColumnVisibility",
+          value: updatedVisibility
+        })
+      });
+    } catch (err) {
+      console.error("Failed to save column settings:", err);
+    }
+  };
 
   // Handle incoming navState from dashboard navigation
   useEffect(() => {
@@ -323,6 +385,7 @@ export default function AdminStudents(props) {
     if (appliedFilters.statusFilter !== "All") params.append("status", appliedFilters.statusFilter);
     if (appliedFilters.yearFilter !== "All") params.append("year", appliedFilters.yearFilter);
     if (appliedFilters.levelFilter !== "All") params.append("level", appliedFilters.levelFilter);
+    if (appliedFilters.isFeePaidFilter !== "All") params.append("isFeePaid", appliedFilters.isFeePaidFilter);
     if (appliedFilters.missingDetails) params.append("missingDetails", "true");
 
     // Add Pagination
@@ -757,6 +820,30 @@ export default function AdminStudents(props) {
     }
   };
 
+  const handleUpdateFeePaid = async (student) => {
+    // Optimistic update
+    setStudents(prev => prev.map(s => s._id === student._id ? { ...s, isFeePaid: !s.isFeePaid } : s));
+
+    try {
+      const res = await apiFetch(`/api/admin/students/${student._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isFeePaid: !student.isFeePaid })
+      });
+
+      if (!res.ok) {
+        // Revert on failure
+        setStudents(prev => prev.map(s => s._id === student._id ? { ...s, isFeePaid: student.isFeePaid } : s));
+        enqueueSnackbar("Failed to update fee status", { variant: "error" });
+      }
+    } catch (err) {
+      console.error(err);
+      // Revert on failure
+      setStudents(prev => prev.map(s => s._id === student._id ? { ...s, isFeePaid: student.isFeePaid } : s));
+      enqueueSnackbar("Error updating fee status", { variant: "error" });
+    }
+  };
+
   /* ================= UI ================= */
 
   const hasRejected = students.some(s => s.status === "Rejected");
@@ -767,6 +854,8 @@ export default function AdminStudents(props) {
     setDeptFilter(appliedFilters.deptFilter);
     setStatusFilter(appliedFilters.statusFilter);
     setYearFilter(appliedFilters.yearFilter);
+    setLevelFilter(appliedFilters.levelFilter || "All");
+    setIsFeePaidFilter(appliedFilters.isFeePaidFilter || "All");
     setMissingDetails(appliedFilters.missingDetails);
     setFilterOpen(true);
   };
@@ -779,6 +868,7 @@ export default function AdminStudents(props) {
       statusFilter,
       yearFilter,
       levelFilter,
+      isFeePaidFilter,
       missingDetails
     });
     setFilterOpen(false);
@@ -799,6 +889,7 @@ export default function AdminStudents(props) {
       statusFilter: "All",
       yearFilter: "All",
       levelFilter: "All",
+      isFeePaidFilter: "All",
       missingDetails: false
     });
     setFilterOpen(false);
@@ -819,6 +910,7 @@ export default function AdminStudents(props) {
     appliedFilters.statusFilter !== "All",
     appliedFilters.yearFilter !== "All",
     appliedFilters.levelFilter !== "All",
+    appliedFilters.isFeePaidFilter !== "All",
     appliedFilters.missingDetails
   ].filter(Boolean).length;
 
@@ -829,6 +921,7 @@ export default function AdminStudents(props) {
     appliedFilters.statusFilter !== statusFilter ||
     appliedFilters.yearFilter !== yearFilter ||
     appliedFilters.levelFilter !== levelFilter ||
+    appliedFilters.isFeePaidFilter !== isFeePaidFilter ||
     appliedFilters.missingDetails !== missingDetails;
 
   if (authLoading) {
@@ -870,6 +963,58 @@ export default function AdminStudents(props) {
                 Filters
               </Badge>
             </Button>
+            <IconButton onClick={(e) => setMoreMenuAnchor(e.currentTarget)} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, p: 1 }}>
+              <MoreVertIcon />
+            </IconButton>
+            <Menu
+              anchorEl={moreMenuAnchor}
+              open={Boolean(moreMenuAnchor)}
+              onClose={() => setMoreMenuAnchor(null)}
+              PaperProps={{ sx: { minWidth: 200, mt: 1.5 } }}
+            >
+              <Box sx={{ px: 2, py: 1 }}>
+                <Typography variant="overline" color="textSecondary" fontWeight="bold">
+                  Column Visibility
+                </Typography>
+              </Box>
+              <Divider />
+              {[
+                { key: 'studentId', label: 'Show ID in Name' },
+                { key: 'guide', label: 'Guide Column' },
+                { key: 'coGuide', label: 'Co-Guide Column' },
+                { key: 'feePaid', label: 'Fee Paid Column' },
+                { key: 'phone', label: 'Phone Column' },
+                { key: 'project', label: 'Project Column' },
+                { key: 'interviews', label: 'Interviews' },
+                { key: 'department', label: 'Department' },
+                { key: 'year', label: 'Year' },
+                { key: 'status', label: 'Status' },
+                { key: 'actions', label: 'Action Icons' }
+              ].map((col) => (
+                <MenuItem
+                  key={col.key}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleColumnVisibility(col.key);
+                  }}
+                  sx={{ py: 0 }}
+                >
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        size="small"
+                        checked={columnVisibility[col.key]}
+                        onChange={() => handleToggleColumnVisibility(col.key)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    }
+                    label={<Typography variant="body2">{col.label}</Typography>}
+                    sx={{ width: '100%', m: 0, py: 1 }}
+                  />
+                </MenuItem>
+              ))}
+            </Menu>
+
             <Button
               variant={selectionMode ? "contained" : "outlined"}
               color={selectionMode ? "secondary" : "primary"}
@@ -942,18 +1087,25 @@ export default function AdminStudents(props) {
       <DataTable
         columns={[
           {
-            id: "name", label: "Name", minWidth: 200, render: (s) => (
-              <Stack direction="row" alignItems="center" spacing={1} onClick={() => openDetailsDialog(s)} sx={{ cursor: "pointer" }}>
-                <Typography sx={{ color: "primary.main", fontWeight: "bold" }}>{s.name}</Typography>
-                {s.status === 'Pending' && s.appliedProject && (
-                  <Tooltip title="Approval Request Pending">
-                    <NotificationImportantIcon color="warning" fontSize="small" />
-                  </Tooltip>
+            id: "name", label: "Student Info", minWidth: 200, render: (s) => (
+              <Box sx={{ cursor: "pointer" }} onClick={() => openDetailsDialog(s)}>
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <Typography sx={{ color: "primary.main", fontWeight: "bold" }}>{s.name}</Typography>
+                  {s.status === 'Pending' && s.appliedProject && (
+                    <Tooltip title="Approval Request Pending">
+                      <NotificationImportantIcon color="warning" fontSize="small" />
+                    </Tooltip>
+                  )}
+                </Stack>
+                {columnVisibility.studentId && (
+                  <Typography variant="caption" color="textSecondary">
+                    {s.studentId || "-"}
+                  </Typography>
                 )}
-              </Stack>
+              </Box>
             )
           },
-          {
+          ...(columnVisibility.guide ? [{
             id: "guide", label: "Guide", minWidth: 150, render: (s) => {
               const name = s.appliedProject?.guide || s.guide || "-";
               const dept = s.appliedProject?.guideDept?.name || s.appliedProject?.guideDept || s.guideDept || "";
@@ -964,8 +1116,8 @@ export default function AdminStudents(props) {
                 </Box>
               );
             }
-          },
-          {
+          }] : []),
+          ...(columnVisibility.coGuide ? [{
             id: "coGuide", label: "Co-Guide", minWidth: 150, render: (s) => {
               const name = s.appliedProject?.coGuide || s.coGuide || "-";
               const dept = s.appliedProject?.coGuideDept?.name || s.appliedProject?.coGuideDept || s.coGuideDept || "";
@@ -976,9 +1128,18 @@ export default function AdminStudents(props) {
                 </Box>
               );
             }
-          },
-          { id: "phone", label: "Phone", minWidth: 120, render: (s) => s.phone || "-" },
-          {
+          }] : []),
+          ...(columnVisibility.feePaid ? [{
+            id: "feePaid", label: "Fee Paid", minWidth: 80, render: (s) => (
+              <Tooltip title={s.isFeePaid ? "Fee Paid" : "Fee Not Paid"}>
+                <IconButton onClick={(e) => { e.stopPropagation(); handleUpdateFeePaid(s); }} size="small">
+                  {s.isFeePaid ? <CheckCircleIcon color="success" /> : <CloseIcon color="error" />}
+                </IconButton>
+              </Tooltip>
+            )
+          }] : []),
+          ...(columnVisibility.phone ? [{ id: "phone", label: "Phone", minWidth: 120, render: (s) => s.phone || "-" }] : []),
+          ...(columnVisibility.project ? [{
             id: "project", label: "Project", minWidth: 200, render: (s) => {
               const hasApplied = s.appliedProject;
               const appCount = (s.projectApplications || []).length;
@@ -1000,7 +1161,7 @@ export default function AdminStudents(props) {
                   >
                     {hasApplied?.title || (totalApps > 0 ? `${totalApps} Application(s)` : "Not Selected")}
                   </Typography>
-                  {totalApps > 1 && (
+                  {totalApps > 1 && s.level !== 2 && (
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: -0.5 }}>
                       {hasApplied ? `+ ${appCount} more choice(s)` : 'Multiple choices pending'}
                     </Typography>
@@ -1008,8 +1169,8 @@ export default function AdminStudents(props) {
                 </Box>
               );
             }
-          },
-          {
+          }] : []),
+          ...(columnVisibility.interviews ? [{
             id: "interviews",
             label: "Interviews",
             minWidth: 150,
@@ -1032,15 +1193,16 @@ export default function AdminStudents(props) {
                 </Box>
               );
             }
-          },
-          { id: "department", label: "Department", minWidth: 150, render: (s) => s.department?.name || s.department || "-" },
-          { id: "year", label: "Year", minWidth: 80, render: (s) => s.year?.name || s.year || "-" },
-          {
+          }] : []),
+          ...(columnVisibility.department ? [{ id: "department", label: "Department", minWidth: 150, render: (s) => s.department?.name || s.department || "-" }] : []),
+          ...(columnVisibility.year ? [{ id: "year", label: "Year", minWidth: 80, render: (s) => s.year?.name || s.year || "-" }] : []),
+          ...(columnVisibility.status ? [{
             id: "status", label: "Status", minWidth: 150, render: (s) => (
               <StatusChip status={s.status} level={s.level} />
             )
-          },
-          {
+          }] : []),
+
+          ...(columnVisibility.actions ? [{
             id: "actions", label: "Manage", minWidth: 150, render: (s) => (
               <Stack direction="row" spacing={0.5}>
                 <Tooltip title={s.appliedProject ? "Daily status" : "No project"}>
@@ -1087,7 +1249,7 @@ export default function AdminStudents(props) {
                 </Tooltip>
               </Stack>
             )
-          }
+          }] : [])
         ]}
         rows={students}
         loading={loading}
@@ -1208,6 +1370,14 @@ export default function AdminStudents(props) {
                 <MenuItem value="All">All Levels</MenuItem>
                 <MenuItem value="1">Level 1</MenuItem>
                 <MenuItem value="2">Level 2</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl size="small" fullWidth>
+              <InputLabel>Fee Status</InputLabel>
+              <Select value={isFeePaidFilter} label="Fee Status" onChange={(e) => setIsFeePaidFilter(e.target.value)}>
+                <MenuItem value="All">All Students</MenuItem>
+                <MenuItem value="true">Paid</MenuItem>
+                <MenuItem value="false">Not Paid</MenuItem>
               </Select>
             </FormControl>
             <FormControlLabel
