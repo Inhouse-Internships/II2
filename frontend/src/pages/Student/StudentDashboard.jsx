@@ -881,7 +881,7 @@ export default function StudentDashboard() {
                     </Box>
                   )}
 
-                  <InfoNote notes={[
+                  <InfoNote ordered notes={[
                     "Students can apply for a maximum of 5 projects and track their application status on the Dashboard.",
                     "To be promoted to Level 2, a student must appear for the project selection interview.",
                     "For any Clarifications Mails us - InhouseInternships@adityauniversity.in"
