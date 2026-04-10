@@ -51,7 +51,7 @@ async function buildProjectMaps(projectIds) {
         { projectApplications: { $in: projectIds } }
       ]
     })
-      .select('_id name studentId department phone email level appliedProject projectApplications')
+      .select('_id name studentId department phone email level appliedProject projectApplications applications')
       .lean()
   ]);
 

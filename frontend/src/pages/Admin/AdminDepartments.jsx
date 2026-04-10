@@ -121,8 +121,9 @@ export default function AdminDepartments(props) {
         try {
             const res = await apiFetch("/api/admin/all-db-departments");
             if (res.ok) {
-                const data = await res.json();
-                setLocalAvailableDepts(data.sort((a, b) => a.name.localeCompare(b.name)));
+                const body = await res.json();
+                const dataArray = body.data || body;
+                setLocalAvailableDepts(dataArray.sort((a, b) => a.name.localeCompare(b.name)));
             }
         } catch (err) {
             console.error("Failed to fetch departments from settings", err);
@@ -134,8 +135,9 @@ export default function AdminDepartments(props) {
             setLoading(true);
             const res = await apiFetch("/api/admin/departments");
             if (res.ok) {
-                const data = await res.json();
-                setMatrixData(Array.isArray(data) ? data : []);
+                const body = await res.json();
+                const matrixArray = body.data || body;
+                setMatrixData(Array.isArray(matrixArray) ? matrixArray : []);
             }
         } catch (err) {
             console.error("Failed to fetch department matrix", err);
@@ -166,7 +168,7 @@ export default function AdminDepartments(props) {
 
     // Group data by Department
     const departmentStats = useMemo(() => {
-        const stats = {}; // { [deptName]: { projectCount, totalSeats, registeredCount, projects: [] } }
+        const stats = {}; // { [deptName]: { projectCount, totalSeats, registeredL1, registeredL2, projects: [] } }
 
         // Initialize with all system departments
         availableDepts.forEach(dept => {
@@ -175,7 +177,8 @@ export default function AdminDepartments(props) {
                     name: dept.name,
                     projectCount: 0,
                     totalSeats: 0,
-                    registeredCount: 0,
+                    registeredL1: 0,
+                    registeredL2: 0,
                     projects: []
                 };
             }
@@ -213,30 +216,38 @@ export default function AdminDepartments(props) {
                         name: deptName,
                         projectCount: 0,
                         totalSeats: 0,
-                        registeredCount: 0,
+                        registeredL1: 0,
+                        registeredL2: 0,
                         projects: []
                     };
                 }
 
                 let seats = project.projectTotalSeats || 0;
-                let registered = project.projectTotalRegistered || 0;
+                let registeredL1 = 0;
+                let registeredL2 = 0;
 
                 // For studentsView, we use the specific department's capacity
                 if (viewMode === "studentsView") {
                     const deptEntry = project.departments?.find(d => (d.name || d.department?.name) === deptName);
                     if (deptEntry) {
                         seats = deptEntry.seats || 0;
-                        registered = deptEntry.registered || 0;
+                        registeredL2 = deptEntry.registeredL2 || deptEntry.registered || 0;
+                        registeredL1 = deptEntry.registeredL1 || 0;
                     }
+                } else {
+                    registeredL2 = project.projectTotalRegisteredL2 || project.projectTotalRegistered || 0;
+                    registeredL1 = project.projectTotalRegisteredL1 || 0;
                 }
 
                 stats[deptName].projectCount += 1;
                 stats[deptName].totalSeats += seats;
-                stats[deptName].registeredCount += registered;
+                stats[deptName].registeredL1 += registeredL1;
+                stats[deptName].registeredL2 += registeredL2;
                 stats[deptName].projects.push({
                     ...project,
                     deptSeats: seats,
-                    deptRegistered: registered
+                    deptRegisteredL1: registeredL1,
+                    deptRegisteredL2: registeredL2
                 });
             });
         });
@@ -360,20 +371,25 @@ export default function AdminDepartments(props) {
         },
         {
             id: "seats", label: "Registered / Seats", minWidth: 150, render: (p) => {
-                const reg = p.deptRegistered || 0;
+                const regL2 = p.deptRegisteredL2 || 0;
+                const regL1 = p.deptRegisteredL1 || 0;
                 const total = p.deptSeats || 0;
                 return (
-                    <Typography
+                    <Box
                         onDoubleClick={() => {
                             if (context.setSection) {
                                 context.setSection("students", { projectId: p._id });
                             }
                         }}
-                        sx={{ cursor: context.setSection ? "pointer" : "default", color: "primary.main", textDecoration: context.setSection ? "underline" : "none" }}
-                        title={context.setSection ? "Double click to view assigned students" : ""}
+                        sx={{ cursor: context.setSection ? "pointer" : "default" }}
                     >
-                        {reg} / {total}
-                    </Typography>
+                        <Typography sx={{ color: "primary.main", fontWeight: 'bold', textDecoration: context.setSection ? "underline" : "none" }}>
+                            L2: {regL2} / {total}
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                            L1 Applicants: {regL1}
+                        </Typography>
+                    </Box>
                 );
             }
         },
@@ -518,9 +534,15 @@ export default function AdminDepartments(props) {
                                                 {dept.name}
                                             </Typography>
 
-                                            <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, display: 'block', textTransform: 'uppercase', letterSpacing: 0.5 }}>Registered:</Typography>
-                                                <Typography variant="body2" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>{dept.registeredCount}</Typography>
+                                            <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #f1f5f9' }}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                                                    <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Assigned (L2):</Typography>
+                                                    <Typography variant="body2" sx={{ fontWeight: 800, color: theme.palette.primary.main }}>{dept.registeredL2}</Typography>
+                                                </Box>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                    <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Applied (L1):</Typography>
+                                                    <Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b' }}>{dept.registeredL1}</Typography>
+                                                </Box>
                                             </Box>
                                         </CardContent>
                                     </CardActionArea>

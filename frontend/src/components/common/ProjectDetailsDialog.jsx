@@ -19,8 +19,7 @@ export default function ProjectDetailsDialog({ open, onClose, project, customAct
     const eligibleStudents = (project.students || []).filter(s => {
         if (s.level !== 2) return false;
         const app = (s.applications || []).find(a => String(a.project?._id || a.project) === String(project._id));
-        if (app) return app.status === 'Qualified' || app.status === 'Pending';
-        return String(s.appliedProject?._id || s.appliedProject) === String(project._id);
+        return app && app.status === 'Qualified';
     });
     const leader = eligibleStudents.find(s => String(s._id) === String(project.teamLeader));
     const leaderName = leader ? `${leader.name} (${leader.studentId || ''})` : "Not Assigned";

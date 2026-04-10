@@ -91,6 +91,9 @@ export default function Login() {
 
   return (
     <Box className="auth-page-wrapper">
+      <Box className="bg-blob blob-1" />
+      <Box className="bg-blob blob-2" />
+      <Box className="bg-blob blob-3" />
       <Paper elevation={0} className="auth-card-modern">
         <IconButton
           onClick={() => navigate('/')}

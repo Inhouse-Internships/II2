@@ -317,6 +317,9 @@ export default function Register() {
 
   return (
     <Box className="auth-page-wrapper">
+      <Box className="bg-blob blob-1" />
+      <Box className="bg-blob blob-2" />
+      <Box className="bg-blob blob-3" />
       <Paper elevation={0} className="auth-card-modern" sx={{ maxWidth: '440px', width: '100%' }}>
         <IconButton
           onClick={() => navigate('/')}

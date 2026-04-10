@@ -884,6 +884,10 @@ export default function StudentDashboard() {
                   <InfoNote ordered notes={[
                     "Students can apply for a maximum of 5 projects and track their application status on the Dashboard.",
                     "To be promoted to Level 2, a student must appear for the project selection interview.",
+                    "The selected interns are expected not to leave the In-house Internship until completion.",
+                    "Attendance of 75% is mandatory during the In-house Internship.",
+                    "The University will not provide any stipend for internship.",
+                    "A Registration Fee (Refundable) of ₹ 1000/- is to be paid by each intern. The registration fee will be refundable if the student completes the in-house internship successfully. If the student drops in the middle or doesn't achieve 75% of attendance or cannot complete the Internship successfully, the fee shall not be refundable.",
                     "For any Clarifications Mails us - InhouseInternships@adityauniversity.in"
                   ]} />
 

@@ -598,17 +598,32 @@ const getDepartmentProjectMatrix = asyncHandler(async (req, res) => {
     ]);
   }
 
-  const totalByProject = new Map();
-  const byProjectDepartment = new Map();
+  const totalL2ByProject = new Map();
+  const totalL1ByProject = new Map();
+  const byProjectDepartmentL2 = new Map();
+  const byProjectDepartmentL1 = new Map();
   const guideMap = new Map();
   const coGuideMap = new Map();
 
   studentStatsRaw.forEach((student) => {
+    const deptName = String(student.department || '');
+    // Level 2 - Officially assigned
     if (student.level === 2 && student.appliedProject && projectIdsStr.includes(String(student.appliedProject))) {
       const pIdStr = String(student.appliedProject);
-      const deptKey = `${pIdStr}:${String(student.department || '')}`;
-      totalByProject.set(pIdStr, (totalByProject.get(pIdStr) || 0) + 1);
-      byProjectDepartment.set(deptKey, (byProjectDepartment.get(deptKey) || 0) + 1);
+      totalL2ByProject.set(pIdStr, (totalL2ByProject.get(pIdStr) || 0) + 1);
+      const deptKey = `${pIdStr}:${deptName}`;
+      byProjectDepartmentL2.set(deptKey, (byProjectDepartmentL2.get(deptKey) || 0) + 1);
+    }
+    // Level 1 - Applicants
+    if (student.level === 1 && student.projectApplications && student.projectApplications.length > 0) {
+      student.projectApplications.forEach(appId => {
+        const pIdStr = String(appId);
+        if (projectIdsStr.includes(pIdStr)) {
+          totalL1ByProject.set(pIdStr, (totalL1ByProject.get(pIdStr) || 0) + 1);
+          const deptKey = `${pIdStr}:${deptName}`;
+          byProjectDepartmentL1.set(deptKey, (byProjectDepartmentL1.get(deptKey) || 0) + 1);
+        }
+      });
     }
   });
 
@@ -627,7 +642,9 @@ const getDepartmentProjectMatrix = asyncHandler(async (req, res) => {
       return {
         name: departmentName,
         total: entry.seats || 0,
-        registered: byProjectDepartment.get(key) || 0,
+        registeredL2: byProjectDepartmentL2.get(key) || 0,
+        registeredL1: byProjectDepartmentL1.get(key) || 0,
+        registered: byProjectDepartmentL2.get(key) || 0, // Legacy support
         department: entry.department
       };
     });
@@ -642,7 +659,9 @@ const getDepartmentProjectMatrix = asyncHandler(async (req, res) => {
       projectId: project.projectId || project._id,
       projectTitle: project.title,
       projectTotalSeats: departments.reduce((sum, entry) => sum + (entry.total || 0), 0),
-      projectTotalRegistered: totalByProject.get(projectKey) || 0,
+      projectTotalRegistered: totalL2ByProject.get(projectKey) || 0, // Legacy support
+      projectTotalRegisteredL2: totalL2ByProject.get(projectKey) || 0,
+      projectTotalRegisteredL1: totalL1ByProject.get(projectKey) || 0,
       departments
     };
   });
