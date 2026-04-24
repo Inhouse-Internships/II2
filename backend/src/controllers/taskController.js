@@ -61,6 +61,29 @@ const createTask = asyncHandler(async (req, res) => {
 });
 
 /**
+ * @desc    Create a new task by Faculty
+ * @route   POST /api/tasks/faculty/create
+ */
+const createFacultyTask = asyncHandler(async (req, res) => {
+    const { title, description, startDate, deadline, project } = req.body;
+
+    const existingTasksCount = await Task.countDocuments({ project });
+    const lastTask = await Task.findOne({ project }).sort({ order: -1 }).lean();
+    const startOrder = (lastTask && typeof lastTask.order === 'number') ? Math.max(lastTask.order, existingTasksCount) : existingTasksCount;
+
+    const task = await Task.create({
+        title,
+        description,
+        startDate,
+        deadline,
+        project,
+        order: startOrder + 1
+    });
+    invalidateAnalyticsCache();
+    res.status(201).json(task);
+});
+
+/**
  * @desc    Bulk import tasks
  * @route   POST /api/tasks/admin/bulk-import
  */
@@ -129,7 +152,7 @@ const getAdminTasks = asyncHandler(async (req, res) => {
     const tasks = await Task.find(filter).populate('project', 'title').sort({ order: 1, createdAt: 1 }).lean();
 
     const taskIds = tasks.map(t => t._id);
-    const submissions = await TaskSubmission.find({ task: { $in: taskIds } }, 'task completionPercentage facultyAdjustedPercentage remarks status student')
+    const submissions = await TaskSubmission.find({ task: { $in: taskIds } }, 'task completionPercentage facultyAdjustedPercentage remarks status student fileUrl fileName descriptionOfWork submittedAt')
         .populate('student', 'name studentId')
         .lean();
 
@@ -192,12 +215,13 @@ const editTask = asyncHandler(async (req, res) => {
  */
 const deleteTask = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const submissions = await TaskSubmission.countDocuments({ task: id });
-    if (submissions > 0) {
-        return res.status(400).json({ message: 'Cannot delete task with existing submissions' });
-    }
+    
+    // Cascade delete submissions
+    await TaskSubmission.deleteMany({ task: id });
+    
     const task = await Task.findByIdAndDelete(id);
     if (!task) return res.status(404).json({ message: 'Task not found' });
+    
     invalidateAnalyticsCache();
     res.json({ message: 'Task deleted successfully' });
 });
@@ -212,10 +236,8 @@ const bulkDeleteTasks = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: 'No tasks provided for deletion' });
     }
 
-    const submissions = await TaskSubmission.countDocuments({ task: { $in: taskIds } });
-    if (submissions > 0) {
-        return res.status(400).json({ message: 'Cannot delete tasks with existing submissions' });
-    }
+    // Cascade delete submissions
+    await TaskSubmission.deleteMany({ task: { $in: taskIds } });
 
     await Task.deleteMany({ _id: { $in: taskIds } });
     invalidateAnalyticsCache();
@@ -383,25 +405,29 @@ const submitTask = asyncHandler(async (req, res) => {
 
     if (!project) return res.status(400).json({ message: 'Project ID is required' });
 
-    // Ensure student is the team leader
+    // Verify project exists
     const projectDoc = await require('../models/Project').findById(project).lean();
     if (!projectDoc) return res.status(404).json({ message: 'Project not found' });
-    if (String(projectDoc.teamLeader) !== String(studentId)) {
-        return res.status(403).json({ message: 'Only the designated team leader can submit tasks.' });
-    }
 
     // Harmonize status logic: check if explicitly "completed" or if percentage is 100
-    const isCompleted = (reqStatus && reqStatus.toLowerCase() === 'completed') || completionPercentage === 100;
+    const isCompleted = (reqStatus && reqStatus.toLowerCase() === 'completed') || completionPercentage === 100 || completionPercentage === '100';
+
+    const updatePayload = {
+        descriptionOfWork: descriptionOfWork || (isCompleted ? "Task completed" : "Task not completed"),
+        completionPercentage: isCompleted ? 100 : 0,
+        project,
+        status: isCompleted ? TASK_STATUS.PENDING : TASK_STATUS.REJECTED,
+        submittedAt: new Date()
+    };
+
+    if (req.file) {
+        updatePayload.fileUrl = `/uploads/submissions/${req.file.filename}`;
+        updatePayload.fileName = req.file.originalname;
+    }
 
     const submission = await TaskSubmission.findOneAndUpdate(
         { task: taskId, student: studentId },
-        {
-            descriptionOfWork: descriptionOfWork || (isCompleted ? "Task completed" : "Task not completed"),
-            completionPercentage: isCompleted ? 100 : 0,
-            project,
-            status: isCompleted ? TASK_STATUS.PENDING : TASK_STATUS.REJECTED,
-            submittedAt: new Date()
-        },
+        updatePayload,
         { upsert: true, new: true }
     );
     invalidateAnalyticsCache();
@@ -420,12 +446,9 @@ const submitWeeklyTask = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: 'Please provide all required fields' });
     }
 
-    // Ensure student is the team leader
+    // Verify project exists
     const projectDoc = await require('../models/Project').findById(project).lean();
     if (!projectDoc) return res.status(404).json({ message: 'Project not found' });
-    if (String(projectDoc.teamLeader) !== String(studentId)) {
-        return res.status(403).json({ message: 'Only the designated team leader can submit weekly reports.' });
-    }
 
     const submission = await WeeklySubmission.findOneAndUpdate(
         { student: studentId, weekNumber, project },
@@ -549,7 +572,7 @@ const reviewSubmissionById = asyncHandler(async (req, res) => {
     const submission = await TaskSubmission.findById(submissionId);
     if (!submission) return res.status(404).json({ message: 'Submission not found' });
 
-    if (status) submission.status = status;
+    if (status) submission.status = status.toLowerCase();
     if (remarks !== undefined) submission.remarks = remarks;
     if (facultyAdjustedPercentage !== undefined) submission.facultyAdjustedPercentage = facultyAdjustedPercentage;
 
@@ -672,5 +695,6 @@ module.exports = {
     updateTaskDeadline,
     submitWeeklyTask,
     getWeeklySubmissions,
-    reviewWeeklySubmission
+    reviewWeeklySubmission,
+    createFacultyTask
 };

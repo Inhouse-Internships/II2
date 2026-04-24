@@ -140,7 +140,13 @@ export default function StudentDashboard() {
       if (results.dashboard?.status === 200) {
         const dashData = results.dashboard.data;
         setStudent(dashData.student);
-        setProjects(dashData.projects);
+
+        const availableProjects = (dashData.projects || []).filter(
+          project => project.seatsAvailable > 0
+        );
+
+        setProjects(availableProjects);
+        //setProjects(dashData.projects);
         setStudentFreeze(dashData.studentFreeze || false);
       } else {
         const errorMsg = results.dashboard?.error || `Dashboard API returned status ${results.dashboard?.status || 'Unknown'}`;
@@ -881,13 +887,15 @@ export default function StudentDashboard() {
                     </Box>
                   )}
 
+                  <h1 style={{ color: "black", fontSize: "20px" }}>Instructions: </h1>
+
                   <InfoNote ordered notes={[
                     "Students can apply for a maximum of 5 projects and track their application status on the Dashboard.",
                     "To be promoted to Level 2, a student must appear for the project selection interview.",
                     "The selected interns are expected not to leave the In-house Internship until completion.",
                     "Attendance of 75% is mandatory during the In-house Internship.",
                     "The University will not provide any stipend for internship.",
-                    "A Registration Fee (Refundable) of ₹ 1000/- is to be paid by each intern. The registration fee will be refundable if the student completes the in-house internship successfully. If the student drops in the middle or doesn't achieve 75% of attendance or cannot complete the Internship successfully, the fee shall not be refundable.",
+                    <b><u>A Registration Fee of ₹ 1000/- is to be paid by each intern. A part of the registration fee ₹ 500/- will be refundable if the student completes the in-house internship successfully. If the student drops in the middle or doesn't achieve 75% of attendance or cannot complete the Internship successfully, the fee shall not be refundable.</u></b>,
                     "For any Clarifications Mails us - InhouseInternships@adityauniversity.in"
                   ]} />
 
@@ -1020,15 +1028,20 @@ export default function StudentDashboard() {
                             <Divider sx={{ my: 1.5 }} />
 
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                              <Typography variant="caption" color="text.secondary" fontWeight="bold">
-                                Eligible Departments:
-                              </Typography>
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                                  Eligible Departments:
+                                </Typography>
+                                <Typography variant="caption" color="primary.main" fontWeight="bold">
+                                  Available Seats Count: {project.totalSeats}
+                                </Typography>
+                              </Box>
                               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                 {project.departments && project.departments.length > 0 ? (
                                   project.departments.map(d => (
                                     <Chip
                                       key={d.department?._id || d.name}
-                                      label={`${d.department?.name || d.name}`}
+                                      label={`${d.department?.name || d.name} (${d.seats})`}
                                       size="small"
                                       variant={d.seats > 0 ? "outlined" : "filled"}
                                       color={d.seats > 0 ? "primary" : "default"}

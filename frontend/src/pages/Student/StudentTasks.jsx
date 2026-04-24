@@ -35,7 +35,8 @@ export default function StudentTasks() {
     const [selectedTask, setSelectedTask] = useState(null);
     const [submitForm, setSubmitForm] = useState({
         descriptionOfWork: "",
-        status: "Completed" // "Completed" or "Not Completed"
+        status: "Completed", // "Completed" or "Not Completed"
+        file: null
     });
 
     // Weekly Submit Dialog State
@@ -108,21 +109,25 @@ export default function StudentTasks() {
         setSelectedTask(task);
         setSubmitForm({
             descriptionOfWork: existingSub?.descriptionOfWork || "",
-            status: existingSub?.completionPercentage === 100 ? "Completed" : (existingSub ? "Not Completed" : "Completed")
+            status: existingSub?.completionPercentage === 100 ? "Completed" : "Pending",
+            file: null
         });
         setSubmitOpen(true);
     };
 
     const handleSubmitTask = async () => {
         try {
-            const payload = {
-                descriptionOfWork: submitForm.descriptionOfWork,
-                completionPercentage: submitForm.status === "Completed" ? 100 : 0,
-                project: projectData._id
-            };
+            const formData = new FormData();
+            formData.append('descriptionOfWork', submitForm.descriptionOfWork);
+            formData.append('completionPercentage', submitForm.status === "Completed" ? "100" : "0");
+            formData.append('project', projectData._id);
+            if (submitForm.file) {
+                formData.append('file', submitForm.file);
+            }
+
             const res = await apiFetch(`/api/tasks/student/submit/${selectedTask._id}`, {
                 method: "POST",
-                body: JSON.stringify(payload)
+                body: formData
             });
             if (res.ok) {
                 setSubmitOpen(false);
@@ -215,14 +220,19 @@ export default function StudentTasks() {
                             {
                                 id: 'status', label: 'Status', minWidth: 120, render: t => {
                                     const sub = submissions.find(s => s.task === t._id || s.task?._id === t._id);
-                                    return sub ? <StatusChip status={sub.status} /> : <StatusChip status="pending" label="Not Submitted" />;
+                                    if (!sub) return <StatusChip status="pending" label="Not Submitted" />;
+                                    
+                                    let label = sub.completionPercentage === 100 ? "Completed" : "Pending";
+                                    if (sub.status === 'approved') label = "Verified";
+                                    else if (sub.status === 'rejected') label = "Revision Needed";
+                                    
+                                    return <StatusChip status={sub.status === 'approved' ? 'approved' : (sub.completionPercentage === 100 ? 'submitted' : 'pending')} label={label} />;
                                 }
                             },
                             {
                                 id: 'action', label: 'Action', minWidth: 100, align: 'right', render: t => {
                                     const sub = submissions.find(s => s.task === t._id || s.task?._id === t._id);
-                                    const isLocked = sub?.status === TASK_STATUS.APPROVED;
-                                    if (!isTeamLeader) return <Typography variant="caption">Read Only</Typography>;
+                                    const isLocked = sub?.status === 'approved';
                                     return (
                                         <Button
                                             variant={sub ? "outlined" : "contained"}
@@ -232,6 +242,25 @@ export default function StudentTasks() {
                                         >
                                             {isLocked ? "Verified" : (sub ? "Edit" : "Submit")}
                                         </Button>
+                                    );
+                                }
+                            },
+                            {
+                                id: 'file', label: 'My Solution', minWidth: 120, render: t => {
+                                    const sub = submissions.find(s => s.task === t._id || s.task?._id === t._id);
+                                    return sub?.fileUrl ? <Button size="small" href={`http://localhost:5000${sub.fileUrl}`} target="_blank" rel="noopener">View File</Button> : <Typography variant="caption">-</Typography>;
+                                }
+                            },
+                            {
+                                id: 'remarks', label: 'Faculty Remarks', minWidth: 200, render: t => {
+                                    const sub = submissions.find(s => s.task === t._id || s.task?._id === t._id);
+                                    if (!sub?.remarks) return <Typography variant="caption" color="textSecondary">No remarks yet</Typography>;
+                                    return (
+                                        <Box sx={{ p: 1, bgcolor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 1 }}>
+                                            <Typography variant="caption" color="success.dark" sx={{ fontStyle: 'italic' }}>
+                                                {sub.remarks}
+                                            </Typography>
+                                        </Box>
                                     );
                                 }
                             }
@@ -251,9 +280,7 @@ export default function StudentTasks() {
                 <Box>
                     <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Typography variant="subtitle1" fontWeight="bold">Weekly Progress Reports</Typography>
-                        {isTeamLeader && (
-                            <Button variant="contained" onClick={handleOpenWeekly}>Submit Weekly Report</Button>
-                        )}
+                        <Button variant="contained" onClick={handleOpenWeekly}>Submit Weekly Report</Button>
                     </Box>
                     <DataTable
                         columns={[
@@ -284,6 +311,23 @@ export default function StudentTasks() {
                     <Stack spacing={3} sx={{ mt: 1 }}>
                         <Typography variant="subtitle2" color="primary">{selectedTask?.title}</Typography>
 
+                        <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 2 }}>
+                            <Grid container spacing={2}>
+                                <Grid item xs={12} sm={4}>
+                                    <Typography variant="caption" color="textSecondary" display="block">Student Name</Typography>
+                                    <Typography variant="body2" fontWeight="bold">{user?.name || '-'}</Typography>
+                                </Grid>
+                                <Grid item xs={12} sm={4}>
+                                    <Typography variant="caption" color="textSecondary" display="block">Reg. No</Typography>
+                                    <Typography variant="body2" fontWeight="bold">{user?.studentId || '-'}</Typography>
+                                </Grid>
+                                <Grid item xs={12} sm={4}>
+                                    <Typography variant="caption" color="textSecondary" display="block">Project Title</Typography>
+                                    <Typography variant="body2" fontWeight="bold" noWrap title={projectData?.title}>{projectData?.title || '-'}</Typography>
+                                </Grid>
+                            </Grid>
+                        </Box>
+
                         <Typography variant="body2" fontWeight="bold">Task Completion Status</Typography>
                         <RadioGroup
                             row
@@ -303,6 +347,15 @@ export default function StudentTasks() {
                             value={submitForm.descriptionOfWork}
                             onChange={(e) => setSubmitForm({ ...submitForm, descriptionOfWork: e.target.value })}
                         />
+
+                        <Box sx={{ mt: 2 }}>
+                            <Typography variant="body2" fontWeight="bold" sx={{ mb: 1 }}>Upload Solution File (Optional)</Typography>
+                            <input
+                                type="file"
+                                onChange={(e) => setSubmitForm({ ...submitForm, file: e.target.files[0] })}
+                                style={{ width: '100%', padding: '10px', display: 'block', border: '1px dashed #cbd5e1', borderRadius: '4px' }}
+                            />
+                        </Box>
                     </Stack>
                 </DialogContent>
                 <DialogActions>

@@ -14,6 +14,7 @@ import {
 import attendanceService from '../../core/services/attendanceService';
 import { apiFetch } from '../../core/services/apiFetch';
 import PageHeader from '../../components/common/PageHeader';
+import * as XLSX from 'xlsx';
 
 export default function FacultyAttendance({ projects = [], context = {} }) {
     const [loading, setLoading] = useState(false);
@@ -22,6 +23,9 @@ export default function FacultyAttendance({ projects = [], context = {} }) {
     const [selectedProjectId, setSelectedProjectId] = useState(context.navState?.projectId || (projects.length > 0 ? projects[0]._id : ''));
     const [students, setStudents] = useState([]);
     const [targetDate, setTargetDate] = useState(new Date().toISOString().split('T')[0]);
+    const [exportFromDate, setExportFromDate] = useState(new Date().toISOString().split('T')[0]);
+    const [exportToDate, setExportToDate] = useState(new Date().toISOString().split('T')[0]);
+    const [exportTouched, setExportTouched] = useState(false);
     const [attendanceForm, setAttendanceForm] = useState({});
     const [attendanceRecords, setAttendanceRecords] = useState({}); // Stores full record objects
     const [internshipSettings, setInternshipSettings] = useState(null);
@@ -40,6 +44,13 @@ export default function FacultyAttendance({ projects = [], context = {} }) {
             }
         } catch (err) { }
     };
+
+    useEffect(() => {
+        // Initialize export range to current operational date once (don't override user range picks)
+        if (exportTouched) return;
+        setExportFromDate(targetDate);
+        setExportToDate(targetDate);
+    }, [targetDate, exportTouched]);
 
     useEffect(() => {
         if (projects.length > 0 && !selectedProjectId) {
@@ -93,6 +104,148 @@ export default function FacultyAttendance({ projects = [], context = {} }) {
         const newFormState = {};
         students.forEach(s => newFormState[s._id] = status);
         setAttendanceForm(newFormState);
+    };
+
+    const getSelectedProject = () => projects.find(p => String(p._id) === String(selectedProjectId));
+
+    // Attendance dates in backend are normalized to IST start-of-day.
+    // Using `toISOString()` (UTC) can shift the date and break exports (all "Absent").
+    const IST_TZ = 'Asia/Kolkata';
+    const isoDateFormatterIST = new Intl.DateTimeFormat('en-CA', {
+        timeZone: IST_TZ,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+
+    const parseISODateToUTCDate = (iso) => {
+        // iso: "YYYY-MM-DD" -> Date at 00:00:00 UTC for stable day increments
+        const [y, m, d] = String(iso || '').split('-').map(Number);
+        if (!y || !m || !d) return null;
+        return new Date(Date.UTC(y, m - 1, d));
+    };
+
+    const toISODateIST = (d) => {
+        try {
+            const dt = new Date(d);
+            if (Number.isNaN(dt.getTime())) return '';
+            return isoDateFormatterIST.format(dt); // "YYYY-MM-DD"
+        } catch {
+            return '';
+        }
+    };
+
+    const eachDateInclusive = (startISO, endISO) => {
+        const dates = [];
+        const start = parseISODateToUTCDate(startISO);
+        const end = parseISODateToUTCDate(endISO);
+        if (!start || !end) return dates;
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return dates;
+        for (let dt = new Date(start); dt <= end; dt.setUTCDate(dt.getUTCDate() + 1)) {
+            dates.push(toISODateIST(dt));
+        }
+        return dates;
+    };
+
+    const downloadExcel = (sheetName, rowsAoA, filename) => {
+        const ws = XLSX.utils.aoa_to_sheet(rowsAoA);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        XLSX.writeFile(wb, filename);
+    };
+
+    const buildAndDownloadAttendanceMatrix = async ({ mode }) => {
+        // mode: 'day' | 'month'
+        if (!selectedProjectId) return;
+
+        const project = getSelectedProject();
+        const baseDept = project?.baseDept || project?.department || '';
+        const guideName = project?.guide || project?.guideName || '';
+        const title = project?.title || '';
+
+        const rawFrom = exportFromDate || targetDate;
+        const rawTo = (mode === 'day') ? (exportFromDate || targetDate) : (exportToDate || exportFromDate || targetDate);
+
+        let from = toISODateIST(rawFrom);
+        let to = toISODateIST(rawTo);
+        if (from && to && new Date(from) > new Date(to)) {
+            [from, to] = [to, from];
+        }
+
+        setLoading(true);
+        setError('');
+        try {
+            const projRes = await apiFetch(`/api/faculty/projects/${selectedProjectId}/students`);
+            if (!projRes.ok) throw new Error('Failed to load project students');
+            const projData = await projRes.json();
+            const projStudents = projData.students || (Array.isArray(projData) ? projData : (projData.data || []));
+
+            const attRes = await attendanceService.getProjectAttendance(selectedProjectId, from, to);
+            if (!attRes.ok) throw new Error('Failed to load attendance history');
+            const attData = await attRes.json();
+            const attendance = attData.attendance || [];
+
+            const studentCols = projStudents
+                .slice()
+                .sort((a, b) => String(a.studentId || '').localeCompare(String(b.studentId || '')))
+                .map(s => String(s.studentId || s.regNo || s.rollNo || s._id));
+
+            // date(IST) -> rollNo -> status
+            const byDate = {};
+            attendance.forEach(r => {
+                const d = toISODateIST(r.date);
+                const roll = String(r.studentId?.studentId || r.studentId?.rollNo || r.studentId?.studentIdNumber || r.studentId || '');
+                if (!d || !roll) return;
+                byDate[d] = byDate[d] || {};
+                byDate[d][roll] = r.attendanceStatus || r.status || 'Absent';
+            });
+
+            const header = [
+                'DAY',
+                'DATE',
+                'DAY',
+                'Name of the Department',
+                'Name of the Guide',
+                'Title of the Project',
+                ...studentCols
+            ];
+
+            const dates = eachDateInclusive(from, to);
+            const aoa = [header];
+            let dayCounter = 1;
+            dates.forEach((d) => {
+                const dayName = parseISODateToUTCDate(d)?.toLocaleDateString('en-US', { weekday: 'long', timeZone: IST_TZ }) || '';
+                if (dayName.toUpperCase() === 'SUNDAY') {
+                    // Add a visual separator row similar to screenshot
+                    aoa.push(['', '', 'SUNDAY']);
+                    return;
+                }
+                const row = [];
+                row.push(`DAY-${dayCounter}`);
+                row.push(parseISODateToUTCDate(d)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: IST_TZ }) || d);
+                row.push(dayName);
+                row.push(baseDept);
+                row.push(guideName);
+                row.push(title);
+                studentCols.forEach((roll) => {
+                    const status = byDate[d]?.[roll] || 'Absent';
+                    row.push(status === 'Present' ? 'Present' : 'Absent');
+                });
+                aoa.push(row);
+                dayCounter += 1;
+            });
+
+            const safeProjectId = (project?.projectId || 'Project').replace(/[^\w.-]+/g, '_');
+            const filename = mode === 'day'
+                ? `Attendance_Daywise_${safeProjectId}_${from}.xlsx`
+                : `Attendance_Monthwise_${safeProjectId}_${from}_to_${to}.xlsx`;
+
+            downloadExcel(mode === 'day' ? 'Daywise' : 'Monthwise', aoa, filename);
+        } catch (err) {
+            setError(err?.message || 'Failed to generate excel');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleSaveAttendance = async () => {
@@ -230,9 +383,58 @@ export default function FacultyAttendance({ projects = [], context = {} }) {
                                 <Typography variant="subtitle2" fontWeight={800} color="#1e293b">
                                     Roll Call Matrix - {new Date(targetDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                                 </Typography>
-                                <Stack direction="row" spacing={1}>
-                                    <Button size="small" variant="text" color="success" onClick={() => markAll('Present')} disabled={!isToday} sx={{ textTransform: 'none', fontWeight: 800 }}>Present All</Button>
-                                    <Button size="small" variant="text" color="error" onClick={() => markAll('Absent')} disabled={!isToday} sx={{ textTransform: 'none', fontWeight: 800 }}>Absent All</Button>
+                                <Stack direction="row" spacing={2} alignItems="center" sx={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                    <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                        <TextField
+                                            type="date"
+                                            size="small"
+                                            label="From"
+                                            value={exportFromDate}
+                                            onChange={(e) => { setExportTouched(true); setExportFromDate(e.target.value); }}
+                                            InputLabelProps={{ shrink: true }}
+                                            sx={{ width: 150, bgcolor: 'white', borderRadius: 2 }}
+                                            inputProps={{
+                                                min: internshipSettings?.startDate || undefined,
+                                                max: internshipSettings?.endDate || undefined
+                                            }}
+                                        />
+                                        <TextField
+                                            type="date"
+                                            size="small"
+                                            label="To"
+                                            value={exportToDate}
+                                            onChange={(e) => { setExportTouched(true); setExportToDate(e.target.value); }}
+                                            InputLabelProps={{ shrink: true }}
+                                            sx={{ width: 150, bgcolor: 'white', borderRadius: 2 }}
+                                            inputProps={{
+                                                min: internshipSettings?.startDate || undefined,
+                                                max: internshipSettings?.endDate || undefined
+                                            }}
+                                        />
+                                        <Button
+                                            size="small"
+                                            variant="text"
+                                            sx={{ textTransform: 'none', fontWeight: 900, textDecoration: 'underline' }}
+                                            disabled={loading}
+                                            onClick={() => buildAndDownloadAttendanceMatrix({ mode: 'day' })}
+                                        >
+                                            Download Day-wise Excel
+                                        </Button>
+                                        <Button
+                                            size="small"
+                                            variant="text"
+                                            sx={{ textTransform: 'none', fontWeight: 900, textDecoration: 'underline' }}
+                                            disabled={loading}
+                                            onClick={() => buildAndDownloadAttendanceMatrix({ mode: 'month' })}
+                                        >
+                                            Download Month-wise Excel
+                                        </Button>
+                                    </Stack>
+
+                                    <Stack direction="row" spacing={1}>
+                                        <Button size="small" variant="text" color="success" onClick={() => markAll('Present')} disabled={!isToday} sx={{ textTransform: 'none', fontWeight: 800 }}>Present All</Button>
+                                        <Button size="small" variant="text" color="error" onClick={() => markAll('Absent')} disabled={!isToday} sx={{ textTransform: 'none', fontWeight: 800 }}>Absent All</Button>
+                                    </Stack>
                                 </Stack>
                             </Box>
 

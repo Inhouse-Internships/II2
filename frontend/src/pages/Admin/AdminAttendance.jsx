@@ -130,6 +130,7 @@ export default function AdminAttendance(props) {
     // Mark view state
     const [projects, setProjects] = useState([]);
     const [selectedProject, setSelectedProject] = useState(null);
+    const [selectedMarkDept, setSelectedMarkDept] = useState('');
     const [students, setStudents] = useState([]);
     const [targetDate, setTargetDate] = useState(new Date().toISOString().split('T')[0]);
     const [attendanceForm, setAttendanceForm] = useState({});
@@ -221,10 +222,34 @@ export default function AdminAttendance(props) {
             const res = await apiFetch('/api/projects');
             if (res.ok) {
                 const data = await res.json();
-                setProjects(data.data || data || []);
+                const list = data.data || data || [];
+                setProjects(list);
             }
         } catch (err) { }
     };
+
+    const markDeptOptions = Array.from(
+        new Set(
+            (projects || [])
+                .map(p => p?.baseDept || p?.department)
+                .filter(Boolean)
+        )
+    ).sort();
+
+    const filteredMarkProjects = (projects || []).filter((p) => {
+        if (!selectedMarkDept) return true;
+        const dept = p?.baseDept || p?.department || '';
+        return String(dept) === String(selectedMarkDept);
+    });
+
+    useEffect(() => {
+        // If selected project is not in filtered list, reset it.
+        if (!effectiveMarkMode) return;
+        if (!selectedProject) return;
+        if (selectedMarkDept && !filteredMarkProjects.some(p => String(p._id) === String(selectedProject._id))) {
+            setSelectedProject(null);
+        }
+    }, [selectedMarkDept, effectiveMarkMode, selectedProject, projects]);
 
     const fetchAttendanceDetails = async () => {
         setLoading(true);
@@ -713,10 +738,27 @@ export default function AdminAttendance(props) {
 
             <Paper sx={{ p: 3, mb: 4, borderRadius: 4 }} elevation={0} variant="outlined">
                 <Grid container spacing={3} alignItems="center">
-                    <Grid size={{ xs: 12, md: 8 }}>
+                    <Grid size={{ xs: 12, md: 3 }}>
+                        <FormControl fullWidth size="small">
+                            <InputLabel>Department</InputLabel>
+                            <Select
+                                value={selectedMarkDept}
+                                label="Department"
+                                onChange={(e) => {
+                                    setSelectedMarkDept(e.target.value);
+                                }}
+                            >
+                                <MenuItem value="">All Departments</MenuItem>
+                                {markDeptOptions.map((d) => (
+                                    <MenuItem key={d} value={d}>{d}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 5 }}>
                         <Autocomplete
-                            options={projects}
-                            getOptionLabel={(p) => p.title}
+                            options={filteredMarkProjects}
+                            getOptionLabel={(p) => p?.title || ''}
                             value={selectedProject}
                             onChange={(e, v) => setSelectedProject(v)}
                             renderInput={(params) => <TextField {...params} label="Select Project" size="small" />}

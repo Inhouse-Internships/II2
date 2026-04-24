@@ -122,6 +122,10 @@ const frontendDistPath = path.join(__dirname, '..', '..', 'frontend', 'dist');
 // Serve static files from the React app
 app.use(express.static(frontendDistPath));
 
+// Serve uploads
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+
+
 // For API routes not found by the above routers, return JSON 404
 app.use('/api', notFound);
 

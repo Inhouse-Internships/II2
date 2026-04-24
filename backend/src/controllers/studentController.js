@@ -240,9 +240,11 @@ const getDashboard = asyncHandler(async (req, res) => {
     }).filter((entry) => entry.name !== 'Unknown');
 
     const studentDepartmentEntry = departments.find((entry) => entry.name === student.department);
-
     const guide = guideMap.get(String(project._id));
     const coGuide = coGuideMap.get(String(project._id));
+
+    const l2StudentsCount = l2StudentCountMap.get(projId) || 0;
+    const totalSeats = departments.reduce((sum, entry) => sum + (entry.seats || 0), 0);
 
     return {
       _id: project._id,
@@ -260,11 +262,12 @@ const getDashboard = asyncHandler(async (req, res) => {
       isEligible: Boolean(studentDepartmentEntry),
       departments,
       status: project.status,
-      totalSeats: departments.reduce((sum, entry) => sum + (entry.seats || 0), 0),
+      totalSeats,
       registeredCount: studentCountMap.get(String(project._id)) || 0,
+      l2StudentsCount,
       teamLeader: project.teamLeader
     };
-  });
+  }).filter(p => p.totalSeats > 0 && p.l2StudentsCount !== p.totalSeats);
 
   const freezeSetting = await Setting.findOne({ key: SETTING_KEYS.STUDENT_FREEZE }).lean();
   const studentFreeze = freezeSetting ? Boolean(freezeSetting.value) : false;

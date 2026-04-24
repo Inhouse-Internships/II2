@@ -89,6 +89,25 @@ export default function AdminFaculty(props) {
   });
   const [allDepartments, setAllDepartments] = useState([]);
 
+  // Assignment states
+  const [selectedDepartmentObj, setSelectedDepartmentObj] = useState(null);
+  const [selectedFacultyObj, setSelectedFacultyObj] = useState(null);
+  const [selectedProjectObj, setSelectedProjectObj] = useState(null);
+  const [taskMode, setTaskMode] = useState(true);
+
+  const [assignForm, setAssignForm] = useState({
+    title: "",
+    description: "",
+    startDate: "",
+    status: "Pending" // "Pending", "Approved", "Rejected"
+  });
+
+  // Track assigned tasks state
+  const [assignedTasks, setAssignedTasks] = useState([]);
+  const [assignedTasksLoading, setAssignedTasksLoading] = useState(false);
+  const [taskDeleteConfirmOpen, setTaskDeleteConfirmOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState(null);
+
   // Debounce search query
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -243,6 +262,78 @@ export default function AdminFaculty(props) {
     }
   };
 
+  const handleAdminAssignTask = async () => {
+    if (!selectedProjectObj || !assignForm.startDate || !assignForm.description) {
+      alert("Please fill out Project, Date, and Tasks/activities to be completed.");
+      return;
+    }
+    try {
+      const payload = {
+        title: assignForm.title || `${selectedFacultyObj?.name} Update`, // Default if empty
+        description: assignForm.description,
+        startDate: assignForm.startDate,
+        deadline: assignForm.startDate, // usually for daily tracking it's the same
+        project: selectedProjectObj._id,
+        status: assignForm.status
+      };
+      const res = await apiFetch("/api/tasks/admin/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        alert("Task Assigned Successfully!");
+        setAssignForm({ title: "", description: "", startDate: "", status: "Pending" });
+        fetchAssignedTasks(selectedProjectObj._id);
+      } else {
+        const err = await res.json();
+        alert(err.message || "Failed to assign task");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Server error assigning task.");
+    }
+  };
+
+
+  const fetchAssignedTasks = async (projectId) => {
+    if (!projectId) { setAssignedTasks([]); return; }
+    setAssignedTasksLoading(true);
+    try {
+      const res = await apiFetch("/api/tasks/admin");
+      if (res.ok) {
+        const all = await res.json();
+        const filtered = all.filter(t => {
+          const pid = typeof t.project === 'object' ? String(t.project?._id) : String(t.project);
+          return pid === String(projectId);
+        });
+        setAssignedTasks(filtered);
+      }
+    } catch (err) {
+      console.error("Error fetching assigned tasks", err);
+    } finally {
+      setAssignedTasksLoading(false);
+    }
+  };
+
+  const confirmDeleteAssignedTask = async () => {
+    if (!taskToDelete) return;
+    try {
+      const res = await apiFetch(`/api/tasks/admin/${taskToDelete._id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (res.ok) {
+        setAssignedTasks(prev => prev.filter(t => t._id !== taskToDelete._id));
+        alert("Task deleted successfully. It has been removed from Faculty and Student portals.");
+      } else {
+        alert(data.message || "Failed to delete task");
+      }
+    } catch (err) {
+      alert("Error deleting task");
+    } finally {
+      setTaskDeleteConfirmOpen(false);
+      setTaskToDelete(null);
+    }
+  };
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
@@ -396,97 +487,287 @@ export default function AdminFaculty(props) {
         </Box>
       )}
 
-      <Box sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-        <DataTable
-          fixedLayout={false}
-          columns={[
-            {
-              id: "name", label: "Name", minWidth: 150, maxWidth: 250, render: (f) => (
-                <Typography
-                  onClick={() => openViewDialog(f)}
-                  noWrap
-                  sx={{
-                    cursor: "pointer",
-                    color: "primary.main",
-                    fontWeight: "bold",
-                    textOverflow: 'ellipsis',
-                    overflow: 'hidden'
+      {/* Faculty Management Table (hidden - replaced by task assignment flow below) */}
+      {false && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+          <DataTable
+            fixedLayout={false}
+            columns={[
+              {
+                id: "name", label: "Name", minWidth: 150, maxWidth: 250, render: (f) => (
+                  <Typography
+                    onClick={() => openViewDialog(f)}
+                    noWrap
+                    sx={{
+                      cursor: "pointer",
+                      color: "primary.main",
+                      fontWeight: "bold",
+                      textOverflow: 'ellipsis',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {f.name}
+                  </Typography>
+                )
+              },
+              { id: "employeeId", label: "Emp ID", minWidth: 120, render: (f) => f.employeeId || "-" },
+              { id: "department", label: "Dept", minWidth: 150, render: (f) => f.department?.name || f.department || "-" },
+              { id: "email", label: "Email", minWidth: 200 },
+              { id: "phone", label: "Phone", minWidth: 120, render: (f) => f.phone || "-" },
+            ]}
+            rows={filteredFaculty}
+            loading={false}
+            selectionMode={selectionMode}
+            selectedIds={selectedIds}
+            onSelectAll={handleSelectAll}
+            onSelectOne={handleSelectOne}
+            emptyMessage="No faculty members found."
+          />
+        </Box>
+      )}
+
+      {/* ── Task Assignment Section ─────────────────────────────────────── */}
+      <Box sx={{ mt: 2 }}>
+        {/* Step 1-3: Cascading dropdowns */}
+        <Paper elevation={0} sx={{ p: 3, mb: 3, borderRadius: 3, border: '1px solid #e2e8f0' }}>
+          <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>Task Assignment</Typography>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+
+            {/* Department Dropdown */}
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>Department</InputLabel>
+              <Select
+                label="Department"
+                value={selectedDepartmentObj?.name || ""}
+                onChange={(e) => {
+                  const dept = allDepartments.find(d => d.name === e.target.value);
+                  setSelectedDepartmentObj(dept || null);
+                  setSelectedFacultyObj(null);
+                  setSelectedProjectObj(null);
+                }}
+              >
+                <MenuItem value="" disabled>Select Department</MenuItem>
+                {allDepartments.map(d => (
+                  <MenuItem key={d._id} value={d.name}>{d.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Faculty Autocomplete filtered by dept */}
+            {selectedDepartmentObj && (
+              <Autocomplete
+                sx={{ minWidth: 250 }}
+                size="small"
+                options={faculty.filter(f => {
+                  const fDept = f.department?.name || f.department || "";
+                  return fDept === selectedDepartmentObj.name;
+                })}
+                getOptionLabel={(f) => f.name}
+                value={selectedFacultyObj}
+                onChange={(e, val) => {
+                  setSelectedFacultyObj(val);
+                  setSelectedProjectObj(null);
+                }}
+                renderInput={(params) => <TextField {...params} label="Faculty / Guide Name" />}
+              />
+            )}
+
+            {/* Project Autocomplete filtered by faculty */}
+            {selectedFacultyObj && (
+              <Autocomplete
+                sx={{ minWidth: 280 }}
+                size="small"
+                options={[
+                  ...(selectedFacultyObj.appliedProject ? [selectedFacultyObj.appliedProject] : []),
+                  ...(selectedFacultyObj.coGuidedProject ? [selectedFacultyObj.coGuidedProject] : [])
+                ].filter(Boolean)}
+                getOptionLabel={(p) => p.title || ""}
+                value={selectedProjectObj}
+                onChange={(e, val) => {
+                  setSelectedProjectObj(val);
+                  fetchAssignedTasks(val?._id || null);
+                }}
+                renderInput={(params) => <TextField {...params} label="Project Title" />}
+              />
+            )}
+          </Box>
+        </Paper>
+
+        {/* Task Form — revealed once project selected */}
+        {selectedProjectObj && (
+          <Paper elevation={0} sx={{ p: 3, borderRadius: 3, border: '1px solid #e2e8f0', borderLeft: '4px solid', borderLeftColor: 'primary.main' }}>
+            <Typography variant="h6" fontWeight="bold" sx={{ mb: 0.5 }}>Assign Task</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Project: <strong>{selectedProjectObj.title}</strong> &nbsp;|&nbsp;
+              Faculty: <strong>{selectedFacultyObj?.name}</strong>
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, maxWidth: 600 }}>
+
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                label="Assigned Date"
+                InputLabelProps={{ shrink: true }}
+                value={assignForm.startDate}
+                onChange={(e) => setAssignForm({ ...assignForm, startDate: e.target.value })}
+              />
+
+              <TextField
+                fullWidth
+                size="small"
+                label="Tasks / Activities to be Completed"
+                multiline
+                rows={4}
+                placeholder="Describe the tasks and activities expected to be completed..."
+                value={assignForm.description}
+                onChange={(e) => setAssignForm({ ...assignForm, description: e.target.value })}
+              />
+
+              <FormControl fullWidth size="small">
+                <InputLabel>Completion Status</InputLabel>
+                <Select
+                  label="Completion Status"
+                  value={assignForm.status}
+                  onChange={(e) => setAssignForm({ ...assignForm, status: e.target.value })}
+                >
+                  <MenuItem value="Pending">Pending</MenuItem>
+                  <MenuItem value="Approved">Completed</MenuItem>
+                  <MenuItem value="Rejected">Not Completed</MenuItem>
+                </Select>
+              </FormControl>
+
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <Button
+                  variant="contained"
+                  onClick={handleAdminAssignTask}
+                  disabled={!assignForm.startDate || !assignForm.description}
+                >
+                  Assign Task
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    setSelectedProjectObj(null);
+                    setAssignForm({ title: "", description: "", startDate: "", status: "Pending" });
                   }}
                 >
-                  {f.name}
-                </Typography>
-              )
-            },
-            { id: "employeeId", label: "Emp ID", minWidth: 120, render: (f) => f.employeeId || "-" },
-            {
-              id: "appliedProject", label: "Guided Project", minWidth: 160, render: (f) => (
-                <Typography
-                  noWrap
-                  onClick={() => f.appliedProject && openProjectDetails(f.appliedProject)}
-                  sx={{
-                    textOverflow: 'ellipsis',
-                    overflow: 'hidden',
-                    maxWidth: { xs: 150, sm: 200, md: '20vw' },
-                    cursor: f.appliedProject ? "pointer" : "default",
-                    color: f.appliedProject ? "primary.main" : "inherit"
-                  }}
-                  title={f.appliedProject ? f.appliedProject.title : "None"}
-                >
-                  {f.appliedProject ? f.appliedProject.title : "None"}
-                </Typography>
-              )
-            },
-            {
-              id: "coGuidedProject", label: "Co-Guided Project", minWidth: 160, render: (f) => (
-                <Typography
-                  noWrap
-                  onClick={() => f.coGuidedProject && openProjectDetails(f.coGuidedProject)}
-                  sx={{
-                    textOverflow: 'ellipsis',
-                    overflow: 'hidden',
-                    maxWidth: { xs: 150, sm: 200, md: '20vw' },
-                    cursor: f.coGuidedProject ? "pointer" : "default",
-                    color: f.coGuidedProject ? "primary.main" : "inherit"
-                  }}
-                  title={f.coGuidedProject ? f.coGuidedProject.title : "None"}
-                >
-                  {f.coGuidedProject ? f.coGuidedProject.title : "None"}
-                </Typography>
-              )
-            },
-            { id: "department", label: "Dept", minWidth: 150, render: (f) => f.department?.name || f.department || "-" },
-            { id: "email", label: "Email", minWidth: 200 },
-            { id: "phone", label: "Phone", minWidth: 120, render: (f) => f.phone || "-" },
-            {
-              id: "status", label: "Status", minWidth: 120, render: (f) => {
-                const isGuideApproved = f.status === "Approved";
-                const isCoGuideApproved = f.coGuideStatus === "Approved";
-                const isAnyApproved = isGuideApproved || isCoGuideApproved;
-                const isAnyRejected = f.status === "Rejected" || f.coGuideStatus === "Rejected";
+                  Clear
+                </Button>
+              </Box>
+            </Box>
+          </Paper>
+        )}
 
-                let label = "Pending";
-                let color = "warning";
+        {/* Track Assigned Tasks */}
+        {selectedProjectObj && (
+          <Paper elevation={0} sx={{ p: 3, mt: 3, borderRadius: 3, border: '1px solid #e2e8f0' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Box>
+                <Typography variant="h6" fontWeight="bold">Track Assigned Tasks</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  All tasks assigned to <strong>{selectedProjectObj.title}</strong>
+                </Typography>
+              </Box>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => fetchAssignedTasks(selectedProjectObj._id)}
+                disabled={assignedTasksLoading}
+              >
+                {assignedTasksLoading ? 'Refreshing…' : 'Refresh'}
+              </Button>
+            </Box>
 
-                if (isAnyApproved) {
-                  label = "Approved";
-                  color = "success";
-                } else if (isAnyRejected) {
-                  label = "Rejected";
-                  color = "error";
-                }
+            {assignedTasksLoading ? (
+              <Box sx={{ textAlign: 'center', py: 3 }}><CircularProgress size={28} /></Box>
+            ) : assignedTasks.length === 0 ? (
+              <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px dashed #cbd5e1', textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">No tasks assigned to this project yet.</Typography>
+              </Paper>
+            ) : (
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                    <TableCell sx={{ fontWeight: 700 }}>Title / Description</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Assigned Date</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Deadline</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Solutions Received</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }} align="center">Delete</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {assignedTasks.map(t => (
+                    <TableRow key={t._id} hover>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="bold">{t.title}</Typography>
+                        {t.description && (
+                          <Typography variant="caption" color="text.secondary" sx={{
+                            display: '-webkit-box', WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical', overflow: 'hidden'
+                          }}>
+                            {t.description}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Chip size="small" label={t.startDate || 'Not Set'} color="primary" variant="outlined" />
+                      </TableCell>
+                      <TableCell>
+                        <Chip size="small" label={t.deadline || 'Not Set'} color="warning" variant="outlined" />
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={
+                            t.submissions?.length > 0
+                              ? `${t.submissions.length} Student${t.submissions.length > 1 ? 's' : ''} Submitted`
+                              : 'No Solutions Yet'
+                          }
+                          color={t.submissions?.length > 0 ? 'success' : 'default'}
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell align="center">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          title="Delete Task"
+                          onClick={() => { setTaskToDelete(t); setTaskDeleteConfirmOpen(true); }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </Paper>
+        )}
 
-                return <Chip label={label} color={color} size="small" />;
-              }
-            }
-          ]}
-          rows={filteredFaculty}
-          loading={false}
-          selectionMode={selectionMode}
-          selectedIds={selectedIds}
-          onSelectAll={handleSelectAll}
-          onSelectOne={handleSelectOne}
-          emptyMessage="No faculty members found."
-        />
+        {/* Placeholder when nothing selected yet */}
+        {!selectedDepartmentObj && (
+          <Paper elevation={0} sx={{ p: 4, borderRadius: 3, border: '1px dashed #cbd5e1', textAlign: 'center' }}>
+            <Typography variant="body1" color="text.secondary">
+              Select a <strong>Department</strong> above to begin assigning a task.
+            </Typography>
+          </Paper>
+        )}
+        {selectedDepartmentObj && !selectedFacultyObj && (
+          <Paper elevation={0} sx={{ p: 4, borderRadius: 3, border: '1px dashed #cbd5e1', textAlign: 'center' }}>
+            <Typography variant="body1" color="text.secondary">
+              Now select a <strong>Faculty / Guide</strong> from the department.
+            </Typography>
+          </Paper>
+        )}
+        {selectedFacultyObj && !selectedProjectObj && (
+          <Paper elevation={0} sx={{ p: 4, borderRadius: 3, border: '1px dashed #cbd5e1', textAlign: 'center' }}>
+            <Typography variant="body1" color="text.secondary">
+              Now select a <strong>Project</strong> to assign the task to.
+            </Typography>
+          </Paper>
+        )}
       </Box>
 
       <ConfirmDialog
@@ -508,6 +789,28 @@ export default function AdminFaculty(props) {
         confirmText="Delete"
         confirmColor="error"
       />
+
+      {/* Task Delete Confirmation */}
+      <Dialog open={taskDeleteConfirmOpen} onClose={() => setTaskDeleteConfirmOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ color: 'error.main' }}>Confirm Task Deletion</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete the task <b>&#34;{taskToDelete?.title}&#34;</b>?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This will permanently remove the task and all student submissions from:
+          </Typography>
+          <Box component="ul" sx={{ mt: 0.5, pl: 3 }}>
+            <Typography component="li" variant="body2">Faculty Login – Daily Status</Typography>
+            <Typography component="li" variant="body2">Student Login – My Tasks</Typography>
+          </Box>
+          <Typography variant="body2" color="error.main" fontWeight="bold" sx={{ mt: 1 }}>This action cannot be undone.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTaskDeleteConfirmOpen(false)}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={confirmDeleteAssignedTask}>Delete Task</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* VIEW/EDIT FACULTY DETAILS */}
       <Dialog open={viewOpen} onClose={() => { setViewOpen(false); setIsEditing(false); }} fullWidth maxWidth="sm" disableRestoreFocus disableEnforceFocus>

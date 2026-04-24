@@ -43,6 +43,12 @@ const taskSubmissionSchema = new mongoose.Schema(
             min: 0,
             max: 100,
         },
+        fileUrl: {
+            type: String,
+        },
+        fileName: {
+            type: String,
+        },
         submittedAt: {
             type: Date,
             default: Date.now,

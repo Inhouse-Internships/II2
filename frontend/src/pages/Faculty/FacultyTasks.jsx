@@ -10,7 +10,9 @@ import {
     HourglassEmpty as HourglassEmptyIcon,
     Close as CloseIcon,
     Settings as SettingsIcon,
-    Preview as PreviewIcon
+    Preview as PreviewIcon,
+    Refresh as RefreshIcon,
+    Delete as DeleteIcon
 } from "@mui/icons-material";
 
 import { apiFetch } from '../../core/services/apiFetch';
@@ -43,10 +45,53 @@ export default function FacultyTasks(props) {
     const [weeklySubmissions, setWeeklySubmissions] = useState([]);
     const [weeklyReviewOpen, setWeeklyReviewOpen] = useState(false);
     const [selectedWeeklySub, setSelectedWeeklySub] = useState(null);
+    const [tasksLoading, setTasksLoading] = useState(false);
     const [weeklyReviewForm, setWeeklyReviewForm] = useState({
-        status: TASK_STATUS.APPROVED,
+        status: 'approved',
         remarks: ''
     });
+
+    // Task Review State
+    const [taskReviewOpen, setTaskReviewOpen] = useState(false);
+    const [selectedReviewTask, setSelectedReviewTask] = useState(null);
+
+    const handleOpenTaskReview = (task) => {
+        setSelectedReviewTask(task);
+        setTaskReviewOpen(true);
+    };
+
+    const handleUpdateSubmission = async (subId, field, value) => {
+        try {
+            const res = await apiFetch(`/api/tasks/faculty/submissions/${subId}/review`, {
+                method: 'PUT',
+                body: JSON.stringify({ [field]: value })
+            });
+            if (res.ok) {
+                // Optimistically update
+                setSelectedReviewTask(prev => {
+                    if (!prev) return prev;
+                    return {
+                        ...prev,
+                        submissions: prev.submissions.map(s => s._id === subId ? { ...s, [field]: value } : s)
+                    };
+                });
+                fetchProjectTasks(selectedProject._id);
+            } else {
+                alert("Failed to update submission");
+            }
+        } catch (err) {
+            alert("Error updating submission");
+        }
+    };
+
+    const [assignOpen, setAssignOpen] = useState(false);
+    const [assignForm, setAssignForm] = useState({
+        title: '',
+        description: '',
+        startDate: '',
+        deadline: ''
+    });
+
 
     useEffect(() => {
         if (authorized && user) {
@@ -91,10 +136,12 @@ export default function FacultyTasks(props) {
     };
 
     const fetchProjectTasks = async (projId) => {
+        setTasksLoading(true);
         try {
             const res = await apiFetch(`/api/tasks/admin?projectId=${projId}`);
             if (res.ok) setTasks(await res.json());
         } catch (err) { }
+        finally { setTasksLoading(false); }
     };
 
     const fetchWeeklySubmissions = async (projId) => {
@@ -107,7 +154,7 @@ export default function FacultyTasks(props) {
     const handleOpenWeeklyReview = (sub) => {
         setSelectedWeeklySub(sub);
         setWeeklyReviewForm({
-            status: sub.status || TASK_STATUS.APPROVED,
+            status: sub.status || 'approved',
             remarks: sub.remarks || ''
         });
         setWeeklyReviewOpen(true);
@@ -127,6 +174,45 @@ export default function FacultyTasks(props) {
             }
         } catch (err) {
             alert("Failed to submit review.");
+        }
+    };
+
+    const handleAssignTask = async () => {
+        if (!assignForm.title || !selectedProject) return;
+        try {
+            const res = await apiFetch('/api/tasks/faculty/create', {
+                method: 'POST',
+                body: JSON.stringify({ ...assignForm, project: selectedProject._id })
+            });
+            if (res.ok) {
+                fetchProjectTasks(selectedProject._id);
+                setAssignOpen(false);
+                setAssignForm({ title: '', description: '', startDate: '', deadline: '' });
+                alert("Task assigned successfully.");
+            } else {
+                alert("Failed to assign task.");
+            }
+        } catch (err) {
+            alert("An error occurred");
+        }
+    };
+
+    const confirmDeleteTask = async () => {
+        if (!taskToDelete) return;
+        try {
+            const res = await apiFetch(`/api/tasks/admin/${taskToDelete._id}`, { method: "DELETE" });
+            const data = await res.json();
+            if (res.ok) {
+                alert("Task deleted successfully");
+                fetchProjectTasks(selectedProject._id);
+            } else {
+                alert(data.message || "Failed to delete task");
+            }
+        } catch (err) {
+            alert("Error deleting task");
+        } finally {
+            setDeleteConfirmOpen(false);
+            setTaskToDelete(null);
         }
     };
 
@@ -190,6 +276,20 @@ export default function FacultyTasks(props) {
                                 placeholder="Search Data"
                             />
                         )}
+                        {selectedProject && (
+                            <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
+                                <Button
+                                    variant="outlined"
+                                    onClick={() => { fetchProjectTasks(selectedProject._id); fetchWeeklySubmissions(selectedProject._id); }}
+                                    disabled={tasksLoading}
+                                >
+                                    {tasksLoading ? 'Refreshing…' : 'Refresh'}
+                                </Button>
+                                <Button variant="contained" onClick={() => setAssignOpen(true)} startIcon={<AssignmentIcon />}>
+                                    Assign Task
+                                </Button>
+                            </Box>
+                        )}
                     </Paper>
 
                     {selectedProject ? (
@@ -207,8 +307,32 @@ export default function FacultyTasks(props) {
                                     },
                                     { id: 'startDate', label: 'Start Date', minWidth: 120, render: t => <Chip size="small" label={t.startDate || "Not Set"} variant="outlined" color="primary" /> },
                                     { id: 'deadline', label: 'End Date', minWidth: 120, render: t => <Chip size="small" label={t.deadline || "Not Set"} variant="tonal" color="warning" /> },
-                                    { id: 'status', label: 'Status', minWidth: 140, render: t => <StatusChip status={t.status || "Not Submitted"} /> },
-                                    { id: 'remarks', label: 'Faculty Remarks', minWidth: 200, render: t => <Typography variant="caption" sx={{ fontStyle: 'italic' }}>{t.remarks || "-"}</Typography> }
+                                    {
+                                        id: 'status', label: 'Submissions', minWidth: 140, render: t => {
+                                            const subCount = t.submissions?.length || 0;
+                                            return (
+                                                <Chip
+                                                    size="small"
+                                                    label={`${subCount} Submitted`}
+                                                    color={subCount > 0 ? "success" : "default"}
+                                                    variant="outlined"
+                                                />
+                                            );
+                                        }
+                                    },
+                                    {
+                                        id: 'actions', label: 'Review Solutions', minWidth: 150, align: 'center', render: t => (
+                                            <Button
+                                                size="small"
+                                                variant={t.submissions?.length > 0 ? "contained" : "outlined"}
+                                                onClick={() => handleOpenTaskReview(t)}
+                                                disabled={!t.submissions || t.submissions.length === 0}
+                                                startIcon={<PreviewIcon />}
+                                            >
+                                                Review
+                                            </Button>
+                                        )
+                                    }
                                 ]}
                                 rows={displayedTasks}
                                 loading={loading}
@@ -271,8 +395,8 @@ export default function FacultyTasks(props) {
                                         label="Status"
                                         onChange={(e) => setWeeklyReviewForm({ ...weeklyReviewForm, status: e.target.value })}
                                     >
-                                        <MenuItem value={TASK_STATUS.APPROVED}>Approve</MenuItem>
-                                        <MenuItem value={TASK_STATUS.REJECTED}>Reject / Revision Needed</MenuItem>
+                                        <MenuItem value="approved">Approve</MenuItem>
+                                        <MenuItem value="rejected">Reject / Revision Needed</MenuItem>
                                     </Select>
                                 </FormControl>
                             </Grid>
@@ -291,6 +415,124 @@ export default function FacultyTasks(props) {
                 <DialogActions>
                     <Button onClick={() => setWeeklyReviewOpen(false)}>Cancel</Button>
                     <Button variant="contained" onClick={handleWeeklyReviewSubmit}>Submit Review</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Assign Task Dialog */}
+            <Dialog open={assignOpen} onClose={() => setAssignOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle>Assign Task to Student(s)</DialogTitle>
+                <DialogContent dividers>
+                    <Stack spacing={3} sx={{ mt: 1 }}>
+                        <TextField
+                            fullWidth
+                            label="Title"
+                            value={assignForm.title}
+                            onChange={(e) => setAssignForm({ ...assignForm, title: e.target.value })}
+                        />
+                        <TextField
+                            fullWidth
+                            multiline
+                            rows={4}
+                            label="Description"
+                            value={assignForm.description}
+                            onChange={(e) => setAssignForm({ ...assignForm, description: e.target.value })}
+                        />
+                        <Grid container spacing={2}>
+                            <Grid item xs={6}>
+                                <TextField
+                                    fullWidth
+                                    type="date"
+                                    label="Start Date"
+                                    InputLabelProps={{ shrink: true }}
+                                    value={assignForm.startDate}
+                                    onChange={(e) => setAssignForm({ ...assignForm, startDate: e.target.value })}
+                                />
+                            </Grid>
+                            <Grid item xs={6}>
+                                <TextField
+                                    fullWidth
+                                    type="date"
+                                    label="Last Date (Deadline)"
+                                    InputLabelProps={{ shrink: true }}
+                                    value={assignForm.deadline}
+                                    onChange={(e) => setAssignForm({ ...assignForm, deadline: e.target.value })}
+                                />
+                            </Grid>
+                        </Grid>
+                    </Stack>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setAssignOpen(false)}>Cancel</Button>
+                    <Button variant="contained" onClick={handleAssignTask} disabled={!assignForm.title}>Assign</Button>
+                </DialogActions>
+            </Dialog>
+            {/* Task Review Modal */}
+            <Dialog open={taskReviewOpen} onClose={() => setTaskReviewOpen(false)} maxWidth="md" fullWidth>
+                <DialogTitle>Review Student Submissions: {selectedReviewTask?.title}</DialogTitle>
+                <DialogContent dividers sx={{ bgcolor: '#f1f5f9' }}>
+                    {selectedReviewTask?.submissions?.length === 0 && (
+                        <Typography variant="body2" color="textSecondary" align="center" sx={{ py: 3 }}>
+                            No submissions yet for this task.
+                        </Typography>
+                    )}
+                    {selectedReviewTask?.submissions?.map((sub) => (
+                        <Paper key={sub._id} sx={{ p: 2, mb: 2, borderRadius: 2 }}>
+                            <Grid container spacing={2}>
+                                <Grid item xs={12} sm={6}>
+                                    <Typography variant="caption" color="textSecondary" display="block">Student</Typography>
+                                    <Typography variant="body2" fontWeight="bold">{sub.student?.name} ({sub.student?.studentId})</Typography>
+                                </Grid>
+                                <Grid item xs={12} sm={6}>
+                                    <Typography variant="caption" color="textSecondary" display="block">Submission Time</Typography>
+                                    <Typography variant="body2">{new Date(sub.submittedAt).toLocaleString()}</Typography>
+                                </Grid>
+                            </Grid>
+                            <Box sx={{ mt: 2, mb: 2, p: 2, bgcolor: '#f8fafc', borderRadius: 1 }}>
+                                <Box sx={{ mb: 2 }}>
+                                    <Typography variant="caption" color="textSecondary" display="block" sx={{ mb: 0.5 }}>My Solution (By Student)</Typography>
+                                    <Typography variant="body2">{sub.descriptionOfWork || "No solution text provided."}</Typography>
+                                    {sub.fileUrl && (
+                                        <Box sx={{ mt: 1.5 }}>
+                                            <Button size="small" variant="contained" color="secondary" href={`http://localhost:5000${sub.fileUrl}`} target="_blank" rel="noopener">
+                                                Download Solution File
+                                            </Button>
+                                        </Box>
+                                    )}
+                                </Box>
+                            </Box>
+                            <Divider sx={{ my: 2 }} />
+                            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                                <FormControl size="small" sx={{ minWidth: 150 }}>
+                                    <InputLabel>Status</InputLabel>
+                                    <Select
+                                        size="small"
+                                        value={sub.status || 'pending'}
+                                        label="Status"
+                                        onChange={(e) => handleUpdateSubmission(sub._id, 'status', e.target.value)}
+                                    >
+                                        <MenuItem value="pending">Pending</MenuItem>
+                                        <MenuItem value="rejected">Not Completed</MenuItem>
+                                        <MenuItem value="approved">Completed</MenuItem>
+                                    </Select>
+                                </FormControl>
+                                <TextField
+                                    size="small"
+                                    fullWidth
+                                    label="Faculty Remarks"
+                                    defaultValue={sub.remarks || ''}
+                                    onBlur={(e) => {
+                                        if (e.target.value !== sub.remarks) {
+                                            handleUpdateSubmission(sub._id, 'remarks', e.target.value);
+                                        }
+                                    }}
+                                    placeholder="Enter remarks for this student's solution..."
+                                />
+                            </Box>
+                        </Paper>
+                    ))}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setTaskReviewOpen(false)}>Close</Button>
                 </DialogActions>
             </Dialog>
         </Box>

@@ -9,14 +9,24 @@ import {
   Alert,
   CircularProgress,
   InputAdornment,
-  IconButton
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText
 } from "@mui/material";
 
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Visibility,
   VisibilityOff,
-  ArrowBack as ArrowBackIcon
+  ArrowBack as ArrowBackIcon,
+  FiberManualRecord as FiberManualRecordIcon,
+  Close as CloseIcon
 } from "@mui/icons-material";
 
 import { setAuthSession, getDefaultRouteForRole } from '../../core/utils/auth';
@@ -31,6 +41,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [noteOpen, setNoteOpen] = useState(false);
   const navigate = useNavigate();
 
   // Preload dashboard chunks in the background so mobile transitions are instant
@@ -187,8 +198,26 @@ export default function Login() {
             }}
           />
 
-          <Box className="forgot-password-link">
-            <Link to="/forgot-password">Forgot password?</Link>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography
+              className="important-note-link blinking"
+              onClick={() => setNoteOpen(true)}
+              sx={{
+                cursor: 'pointer',
+                color: '#ef4444',
+                fontWeight: '800',
+                fontSize: '0.875rem',
+                textDecoration: 'none',
+                '&:hover': {
+                  textDecoration: 'underline'
+                }
+              }}
+            >
+              Important Note!
+            </Typography>
+            <Box className="forgot-password-link" sx={{ m: 0 }}>
+              <Link to="/forgot-password">Forgot password?</Link>
+            </Box>
           </Box>
 
           <Button
@@ -207,6 +236,87 @@ export default function Login() {
           Don't have an account? <Link to="/register" className="register-link">Register</Link>
         </Typography>
       </Paper>
+
+      <Dialog
+        open={noteOpen}
+        onClose={() => setNoteOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: '20px',
+            padding: '8px'
+          }
+        }}
+      >
+        <DialogTitle sx={{
+          textAlign: 'center',
+          fontWeight: '800',
+          fontSize: '1.5rem',
+          color: '#0f172a',
+          pb: 1,
+          borderBottom: '2px solid #f1f5f9',
+          position: 'relative'
+        }}>
+          Instructions to the Students: In-house Internships 2.0
+          <IconButton
+            onClick={() => setNoteOpen(false)}
+            sx={{ position: 'absolute', right: 16, top: 16 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ mt: 3 }}>
+          <Typography variant="body1" sx={{ mb: 2, color: '#334155', lineHeight: 1.7 }}>
+            All the current second-year students (Admitted Batch: 2024–2028) are hereby informed that a provision has been enabled for registration for the <strong>In-house Internships 2.0</strong>, scheduled to commence from <strong>04 May 2026</strong>, for those who missed the opportunity earlier.
+          </Typography>
+
+          <Typography variant="body1" sx={{ mb: 1, fontWeight: '700', color: '#1e293b' }}>
+            Registration will be enabled from 24-04-2026 to 26-04-2026
+          </Typography>
+
+          {/* <Typography variant="body1" sx={{ mb: 1, color: '#334155' }}>
+            URL for Registration: <a href="https://internship.adityauniversity.in/" target="_blank" rel="noreferrer" style={{ color: '#3b82f6', fontWeight: '600' }}>https://internship.adityauniversity.in/</a>
+          </Typography> */}
+
+          <Typography variant="body1" sx={{ mb: 1, color: '#334155' }}>
+            The interviews will be conducted on <strong>25th April and 28th April (Afternoon Session)</strong>.
+          </Typography>
+
+          <Typography variant="body1" sx={{ mb: 1, color: '#334155' }}>
+            The payment link will be enabled from <strong>25th April onwards</strong> and will be closed on <strong>29th April 10:30 AM.</strong> 
+          </Typography>
+
+          <Typography variant="body1" sx={{ mb: 3, color: '#ef4444', fontWeight: '600' }}>
+            No extension will be provided beyond the mentioned deadline.
+          </Typography>
+
+          <Box sx={{
+            bgcolor: '#fef2f2',
+            p: 2.5,
+            borderRadius: '16px',
+            border: '1px solid #fee2e2'
+          }}>
+           
+
+            
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button
+            onClick={() => setNoteOpen(false)}
+            variant="contained"
+            sx={{
+              borderRadius: '12px',
+              px: 4,
+              bgcolor: '#0f172a',
+              '&:hover': { bgcolor: '#1e293b' }
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

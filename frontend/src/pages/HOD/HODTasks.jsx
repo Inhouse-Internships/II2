@@ -418,14 +418,17 @@ export default function HODTasks(props) {
                                     )
                                 },
                                 {
-                                    id: "status", label: "Status", minWidth: 140, render: t => <StatusChip status={t.status || "Not Submitted"} />
-                                },
-                                {
-                                    id: "remarks", label: "Faculty Remarks", minWidth: 200, render: t => (
-                                        <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }} noWrap title={t.remarks}>
-                                            {t.remarks || "-"}
-                                        </Typography>
-                                    )
+                                    id: "status", label: "Submissions", minWidth: 140, render: t => {
+                                        const subCount = t.submissions?.length || 0;
+                                        return (
+                                            <Chip 
+                                                size="small" 
+                                                label={`${subCount} Submitted`} 
+                                                color={subCount > 0 ? "success" : "default"} 
+                                                variant="outlined" 
+                                            />
+                                        );
+                                    }
                                 }
                             ]}
                             rows={displayedTasks}
